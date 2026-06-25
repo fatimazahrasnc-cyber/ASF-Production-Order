@@ -141,8 +141,8 @@
       </div>
       <div class="field">
         <label>Reference</label>
-        <input type="text" id="po-ref" placeholder="Leave blank for automatic">
-        <div class="hint">Empty → Manager auto-numbers (automaticReference).</div>
+        <input type="text" id="po-ref" placeholder="Auto: previous + 1">
+        <div class="hint">Auto-filled as the highest existing reference + 1. Editable.</div>
       </div>
       <div class="field">
         <label>Description</label>
@@ -195,10 +195,10 @@
     <button class="add-line" onclick="addExpLine()">＋ Add expense line</button>
 
     <div class="summary-strip">
-      <div class="stat"><div class="k">Raw Material Cost</div><div class="v" id="sum-mat">$0.00</div></div>
-      <div class="stat"><div class="k">Expense Cost</div><div class="v" id="sum-exp">$0.00</div></div>
-      <div class="stat"><div class="k">Total Cost</div><div class="v" id="sum-total">$0.00</div></div>
-      <div class="stat"><div class="k">Per-Unit Cost</div><div class="v accent" id="sum-perunit">$0.00</div></div>
+      <div class="stat"><div class="k">Raw Material Cost</div><div class="v" id="sum-mat">Rs 0.00</div></div>
+      <div class="stat"><div class="k">Expense Cost</div><div class="v" id="sum-exp">Rs 0.00</div></div>
+      <div class="stat"><div class="k">Total Cost</div><div class="v" id="sum-total">Rs 0.00</div></div>
+      <div class="stat"><div class="k">Per-Unit Cost</div><div class="v accent" id="sum-perunit">Rs 0.00</div></div>
     </div>
 
     <div class="actions">
@@ -326,18 +326,54 @@ let PRODUCTION = [];         // raw production-order-batch rows
 let COST_MAP   = {};         // inventory key -> unit cost
 let NAME_MAP   = {};         // inventory key -> display name
 
-const fmt = v => '$' + (Number(v) || 0).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 });
-const num = v => (Number(v) || 0).toLocaleString(undefined, { maximumFractionDigits:4 });
+const fmt = v => 'Rs ' + (Number(v) || 0).toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
+const num = v => (Number(v) || 0).toLocaleString('en-IN', { maximumFractionDigits:4 });
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function fmtDate(d) {
   if (!d) return '—';
   const dt = new Date(d);
-  return isNaN(dt) ? esc(d) : dt.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+  return isNaN(dt) ? esc(d) : dt.toLocaleDateString('en-GB', { year:'numeric', month:'short', day:'numeric' });
 }
 
 /* Best-effort unit cost for an inventory item: prefer purchase price, fall back to sales price. */
 function unitCostOf(it) {
   return Number(it?.defaultPurchaseUnitPrice) || Number(it?.defaultSalesUnitPrice) || 0;
+}
+
+/* ── Budgeted-Qty persistence ──
+   Manager has no native budgeted-qty field, so we
+   stash a machine-readable tag at the end of the
+   description on create, then parse it back out into
+   its own column on fetch/print and hide the tag from
+   the visible description. */
+const BUD_RE = /\u27E6BUD:([^\u27E7]*)\u27E7/;   // ⟦BUD:key=qty|key=qty⟧
+function encodeBudgets(map) {
+  const parts = Object.entries(map).filter(([k,v]) => k && Number(v) > 0).map(([k,v]) => `${k}=${v}`);
+  return parts.length ? `\u27E6BUD:${parts.join('|')}\u27E7` : '';
+}
+function parseBudgets(description) {
+  const out = { map:{}, clean:(description || '').toString() };
+  const m = out.clean.match(BUD_RE);
+  if (m) {
+    m[1].split('|').forEach(pair => {
+      const [k, v] = pair.split('=');
+      if (k) out.map[k] = Number(v) || 0;
+    });
+    out.clean = out.clean.replace(BUD_RE, '').replace(/\s*\|\s*$/,'').trim();
+  }
+  return out;
+}
+
+/* ── Auto reference = highest existing numeric reference + 1 ── */
+function nextReference() {
+  let max = 0;
+  PRODUCTION.forEach(r => {
+    const it = r?.item || r || {};
+    const ref = (it?.reference ?? it?.text ?? '').toString().trim();
+    const n = parseInt(ref, 10);
+    if (!isNaN(n) && n > max) max = n;
+  });
+  return String(max + 1);
 }
 
 /* ══════════════════════════════════
@@ -425,6 +461,11 @@ function render() {
   document.getElementById('post-btn').disabled = false;
   if (!document.getElementById('bom-body').children.length) addBomLine();
   if (!document.getElementById('exp-body').children.length) addExpLine();
+
+  // Auto-fill reference (highest existing + 1) if the field is empty
+  const refEl = document.getElementById('po-ref');
+  if (!refEl.value.trim()) refEl.value = nextReference();
+
   recalcCreate();
 
   renderPoList();
@@ -489,8 +530,8 @@ function addBomLine() {
     <td><select class="bom-mat" onchange="recalcCreate()">${materialOptions('')}</select></td>
     <td class="num"><input type="number" class="bom-qty num" min="0" step="any" value="1" oninput="recalcCreate()"></td>
     <td class="num"><input type="number" class="bom-budget num" min="0" step="any" value="0" placeholder="0" oninput="recalcCreate()"></td>
-    <td class="num bom-unit">$0.00</td>
-    <td class="num bom-line">$0.00</td>
+    <td class="num bom-unit">Rs 0.00</td>
+    <td class="num bom-line">Rs 0.00</td>
     <td><button class="row-btn" title="Remove" onclick="this.closest('tr').remove();recalcCreate()">✕</button></td>`;
   tb.appendChild(tr);
 }
@@ -535,7 +576,7 @@ function recalcCreate() {
 }
 
 function resetCreateForm() {
-  document.getElementById('po-ref').value = '';
+  document.getElementById('po-ref').value = INVENTORY.length ? nextReference() : '';
   document.getElementById('po-desc').value = '';
   document.getElementById('po-finished').value = '';
   document.getElementById('po-qty').value = '1';
@@ -565,16 +606,16 @@ function submitProductionOrder() {
   const finished = document.getElementById('po-finished').value;
   const prodQty  = Number(document.getElementById('po-qty').value) || 0;
 
-  // Collect BOM lines
+  // Collect BOM lines + budgeted qty keyed by material
   const bomLines = [];
-  const budgets  = [];
+  const budgetMap = {};
   document.querySelectorAll('#bom-body tr').forEach(tr => {
     const key = tr.querySelector('.bom-mat')?.value || '';
     const qty = Number(tr.querySelector('.bom-qty')?.value) || 0;
     const bud = Number(tr.querySelector('.bom-budget')?.value) || 0;
     if (key) {
       bomLines.push({ billOfMaterials: key, qty: qty, obsolete_Qty: null });
-      budgets.push(`${NAME_MAP[key] || key}: budget ${bud}`);
+      if (bud > 0) budgetMap[key] = bud;
     }
   });
 
@@ -591,10 +632,13 @@ function submitProductionOrder() {
   if (prodQty <= 0) { msg.innerHTML = `<div class="err-box">Finished qty must be greater than zero.</div>`; return; }
   if (!bomLines.length) { msg.innerHTML = `<div class="err-box">Add at least one material line.</div>`; return; }
 
-  const ref = document.getElementById('po-ref').value.trim();
-  let desc  = document.getElementById('po-desc').value.trim();
-  // Preserve budgeted-qty planning data inside description (non-native field)
-  if (budgets.length) desc = (desc ? desc + ' | ' : '') + 'Budgeted: ' + budgets.join('; ');
+  // Reference: use field value, else auto = highest existing + 1
+  const ref = document.getElementById('po-ref').value.trim() || nextReference();
+
+  // Description: keep user text clean; append a hidden budgeted-qty tag for round-tripping
+  let desc = document.getElementById('po-desc').value.trim();
+  const budTag = encodeBudgets(budgetMap);
+  const fullDesc = [desc, budTag].filter(Boolean).join(' ').trim();
 
   const dateVal = document.getElementById('po-date').value;
   const isoDate = dateVal ? new Date(dateVal + 'T00:00:00').toISOString() : new Date().toISOString();
@@ -603,9 +647,9 @@ function submitProductionOrder() {
   const payload = {
     value: {
       date: isoDate,
-      reference: ref || null,
+      reference: ref,
       inventoryLocation: null,
-      description: desc || null,
+      description: fullDesc || null,
       finishedInventoryItem: finished,
       qty: prodQty,
       billOfMaterials: bomLines,
@@ -615,7 +659,7 @@ function submitProductionOrder() {
       customThemeId: null,
       customFields: null,
       customFields2: { strings:null, decimals:null, dates:null, booleans:null, stringArrays:null, images:null },
-      automaticReference: !ref,
+      automaticReference: false,
       obsolete_ExpenseAccount: null,
       obsolete_Amount: null,
       obsolete_JournalEntry: null,
@@ -632,8 +676,13 @@ function submitProductionOrder() {
   postMessageWithResponse({ type:'api-request', method:'POST', path:'/api4/production-order', body: payload })
     .then(resp => {
       const newKey = resp?.key || resp?.id || (typeof resp === 'string' ? resp : null);
-      msg.innerHTML = `<div class="ok-box">✓ Production order created${newKey ? ' (key: ' + esc(newKey) + ')' : ''}. Reload records to see it in Fetch &amp; Print.</div>`;
+      // Reflect the new order locally so the next reference auto-advances without a reload
+      PRODUCTION.push({ key: newKey, item: { ...payload.value, text: payload.value.reference } });
+      msg.innerHTML = `<div class="ok-box">✓ Production order #${esc(ref)} created${newKey ? ' (key: ' + esc(newKey) + ')' : ''}.</div>`;
       btn.textContent = 'Create Production Order'; btn.disabled = false;
+      // Advance reference field to the next number for the following entry
+      document.getElementById('po-ref').value = nextReference();
+      renderPoList();
     })
     .catch(err => {
       msg.innerHTML = `<div class="err-box">⚠ Could not create order: ${esc(err.message)}</div>`;
@@ -651,6 +700,7 @@ function submitProductionOrder() {
 function computeOrderCost(item) {
   let matTotal = 0;
   let resolved = 0, totalLines = 0;
+  const { map: budgetMap, clean: cleanDesc } = parseBudgets(item?.description);
   const lines = Array.isArray(item?.billOfMaterials) ? item.billOfMaterials : [];
   const detail = lines.map(l => {
     totalLines++;
@@ -662,7 +712,8 @@ function computeOrderCost(item) {
     const u = unit || 0;
     const line = u * qty;
     matTotal += line;
-    return { name: known ? (NAME_MAP[key] || key) : (key || '—'), qty, unit:u, line, known };
+    const budget = Number(budgetMap[key]) || 0;
+    return { name: known ? (NAME_MAP[key] || key) : (key || '—'), qty, budget, unit:u, line, known };
   });
 
   let expTotal = 0;
@@ -672,8 +723,9 @@ function computeOrderCost(item) {
   const totalCost = matTotal + (includeExp ? expTotal : 0);
   const prodQty   = Number(item?.qty) || 0;
   const perUnit   = prodQty > 0 ? totalCost / prodQty : 0;   // guard divide-by-zero
+  const hasBudget = detail.some(d => d.budget > 0);
 
-  return { detail, matTotal, expTotal, includeExp, totalCost, prodQty, perUnit, resolved, totalLines };
+  return { detail, matTotal, expTotal, includeExp, totalCost, prodQty, perUnit, resolved, totalLines, cleanDesc, hasBudget };
 }
 
 /* List of production orders */
@@ -693,7 +745,7 @@ function renderPoList() {
           <span class="ref">#${esc(ref)}</span>
           <span class="pill cost">${fmt(c.perUnit)} / unit</span>
         </div>
-        <div class="desc">${esc(it?.description || '—')}</div>
+        <div class="desc">${esc(c.cleanDesc || '—')}</div>
         <div class="meta">
           <span>${fmtDate(it?.date)}</span>
           <span>Finished: ${esc(NAME_MAP[it?.finishedInventoryItem] || it?.finishedInventoryItem || '—')}</span>
@@ -720,13 +772,14 @@ function openOrder(idx) {
     <tr>
       <td>${esc(d.name)}${d.known ? '' : ' <span style="color:#cf222e;font-size:11px">(unpriced)</span>'}</td>
       <td class="num">${num(d.qty)}</td>
+      <td class="num">${d.budget > 0 ? num(d.budget) : '—'}</td>
       <td class="num">${fmt(d.unit)}</td>
       <td class="num">${fmt(d.line)}</td>
-    </tr>`).join('') || `<tr><td colspan="4" style="text-align:center;color:#888">No material lines</td></tr>`;
+    </tr>`).join('') || `<tr><td colspan="5" style="text-align:center;color:#888">No material lines</td></tr>`;
 
   const expRows = (Array.isArray(it?.expenseItems) ? it.expenseItems : [])
     .filter(e => Number(e?.amount))
-    .map(e => `<tr><td>Expense / non-inventory cost</td><td class="num"></td><td class="num"></td><td class="num">${fmt(e.amount)}</td></tr>`).join('');
+    .map(e => `<tr><td>Expense / non-inventory cost</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">${fmt(e.amount)}</td></tr>`).join('');
 
   const docHtml = `
     <div class="doc">
@@ -743,21 +796,21 @@ function openOrder(idx) {
         <div><div class="k">Date</div><div class="v">${fmtDate(it?.date)}</div></div>
         <div><div class="k">Finished Item</div><div class="v">${esc(finishedName)}</div></div>
         <div><div class="k">Qty Produced</div><div class="v">${num(it?.qty)}</div></div>
-        <div style="grid-column:1/-1"><div class="k">Description</div><div class="v">${esc(it?.description || '—')}</div></div>
+        <div style="grid-column:1/-1"><div class="k">Description</div><div class="v">${esc(c.cleanDesc || '—')}</div></div>
       </div>
 
       <table class="doc-tbl">
         <thead>
-          <tr><th>Raw Material</th><th class="num">Qty Used</th><th class="num">Unit Cost</th><th class="num">Line Cost</th></tr>
+          <tr><th>Raw Material</th><th class="num">Qty Used</th><th class="num">Budgeted Qty</th><th class="num">Unit Cost</th><th class="num">Line Cost</th></tr>
         </thead>
         <tbody>
           ${rowsHtml}
           ${expRows}
         </tbody>
         <tfoot>
-          <tr><td colspan="3">Total Raw Material Cost</td><td class="num">${fmt(c.matTotal)}</td></tr>
-          <tr><td colspan="3">Expense Cost ${c.includeExp ? '(included)' : '(excluded)'}</td><td class="num">${fmt(c.expTotal)}</td></tr>
-          <tr><td colspan="3">Total Production Cost</td><td class="num">${fmt(c.totalCost)}</td></tr>
+          <tr><td colspan="4">Total Raw Material Cost</td><td class="num">${fmt(c.matTotal)}</td></tr>
+          <tr><td colspan="4">Expense Cost ${c.includeExp ? '(included)' : '(excluded)'}</td><td class="num">${fmt(c.expTotal)}</td></tr>
+          <tr><td colspan="4">Total Production Cost</td><td class="num">${fmt(c.totalCost)}</td></tr>
         </tfoot>
       </table>
 
