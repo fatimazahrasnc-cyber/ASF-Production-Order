@@ -378,7 +378,7 @@ async function loadAllRecords() {
     // Build lookup maps keyed by inventory item key
     COST_MAP = {}; NAME_MAP = {};
     for (const row of INVENTORY) {
-      const it = row?.item || {};
+      const it = row?.item || row || {};
       const key = row?.key || it?.key;
       if (!key) continue;
       COST_MAP[key] = unitCostOf(it);
@@ -410,14 +410,16 @@ function render() {
     app.innerHTML = `<div class="ok-box">Loaded ${INVENTORY.length} inventory items and ${PRODUCTION.length} production orders. You can now create or fetch orders.</div>`;
   }
 
-  // Populate finished-item dropdown
+  // Populate finished-item dropdown with ALL inventory items
   const sel = document.getElementById('po-finished');
-  sel.innerHTML = '<option value="">— Select finished item —</option>' +
-    INVENTORY.map(r => {
-      const it = r?.item || {};
-      const key = r?.key || it?.key;
-      return `<option value="${esc(key)}">${esc(it?.nameWithCode || it?.itemName || key)}</option>`;
-    }).join('');
+  const prevFinished = sel.value;
+  sel.innerHTML = '<option value="">— Select finished item —</option>' + inventoryOptionsHtml(prevFinished);
+
+  // Refresh any material-line dropdowns that already exist, keeping their selection
+  document.querySelectorAll('#bom-body .bom-mat').forEach(s => {
+    const keep = s.value;
+    s.innerHTML = materialOptions(keep);
+  });
 
   // Enable create button + seed one BOM line if empty
   document.getElementById('post-btn').disabled = false;
@@ -426,6 +428,39 @@ function render() {
   recalcCreate();
 
   renderPoList();
+}
+
+/* ══════════════════════════════════
+   Inventory option helpers — shared by the
+   Finished Item picker AND every Material line.
+   Reads code/name/key defensively (works whether
+   a row is the {key,item} wrapper or a flat item)
+   and lists every inventory item, sorted by code.
+══════════════════════════════════ */
+function invFields(row) {
+  const it  = row?.item || row || {};        // accept wrapper or flat shape
+  const key = row?.key || it?.key || '';
+  const label = it?.nameWithCode
+    || [it?.itemCode, it?.itemName].filter(Boolean).join(' - ')
+    || it?.itemName || it?.itemCode || key || '(unnamed item)';
+  return { key, label, code: it?.itemCode || '', inactive: !!it?.inactive };
+}
+
+function sortedInventory() {
+  return [...INVENTORY].sort((a, b) => {
+    const A = invFields(a), B = invFields(b);
+    return (A.code || A.label).localeCompare(B.code || B.label, undefined, { numeric:true, sensitivity:'base' });
+  });
+}
+
+/* <option> list for ALL inventory items; marks the given key selected. */
+function inventoryOptionsHtml(selected) {
+  return sortedInventory().map(row => {
+    const { key, label, inactive } = invFields(row);
+    if (!key) return '';
+    const sel = key === selected ? ' selected' : '';
+    return `<option value="${esc(key)}"${sel}>${esc(label)}${inactive ? ' (inactive)' : ''}</option>`;
+  }).join('');
 }
 
 /* ══════════════════════════════════
@@ -443,13 +478,8 @@ function switchTab(name) {
    Each line carries the extra "Budgeted Qty" column.
 ══════════════════════════════════ */
 function materialOptions(selected) {
-  return '<option value="">— Select material —</option>' +
-    INVENTORY.map(r => {
-      const it = r?.item || {};
-      const key = r?.key || it?.key;
-      const sel = key === selected ? ' selected' : '';
-      return `<option value="${esc(key)}"${sel}>${esc(it?.nameWithCode || it?.itemName || key)}</option>`;
-    }).join('');
+  if (!INVENTORY.length) return '<option value="">— Load records first —</option>';
+  return '<option value="">— Select material —</option>' + inventoryOptionsHtml(selected);
 }
 
 function addBomLine() {
