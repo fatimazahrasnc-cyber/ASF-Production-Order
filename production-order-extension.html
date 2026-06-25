@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Production Order — Create & Fetch (Manager.io Extension)</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:#ffffff; color:#24292f; min-height:100vh; padding:20px; }
+
+  /* ── Control bar (from skeleton) ── */
+  .ctrl-bar {
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:12px 16px; margin-bottom:18px;
+    background:#f6f8fa; border:1px solid #d0d7de; border-radius:10px;
+  }
+  .load-btn {
+    padding:8px 20px; border:none; border-radius:7px; cursor:pointer;
+    font-size:13px; font-weight:700; background:#0969da; color:#fff; transition:opacity .15s;
+  }
+  .load-btn:disabled { opacity:.45; cursor:not-allowed; }
+  .prog-wrap { flex:1; min-width:100px; height:5px; background:#d0d7de; border-radius:3px; overflow:hidden; }
+  .prog-bar  { height:100%; width:0%; background:#0969da; border-radius:3px; transition:width .25s; }
+  .status-txt { font-size:12px; color:#57606a; white-space:nowrap; }
+  .err-box { color:#cf222e; background:#fff5f5; border:1px solid #ffcfcf; border-radius:8px; padding:12px 16px; font-size:13px; margin-bottom:16px; }
+  .ok-box  { color:#1a7f37; background:#f0fff4; border:1px solid #b6f0c4; border-radius:8px; padding:12px 16px; font-size:13px; margin-bottom:16px; }
+
+  /* ── Tabs ── */
+  .tabs { display:flex; gap:6px; margin-bottom:18px; border-bottom:2px solid #e6eaef; }
+  .tab-btn {
+    padding:10px 18px; border:none; background:none; cursor:pointer;
+    font-size:14px; font-weight:600; color:#57606a; border-bottom:3px solid transparent;
+    margin-bottom:-2px; transition:color .15s,border-color .15s;
+  }
+  .tab-btn.active { color:#0969da; border-bottom-color:#0969da; }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+
+  /* ── Cards / layout ── */
+  .card { background:#fff; border:1px solid #d0d7de; border-radius:12px; padding:20px; margin-bottom:18px; }
+  .card h2 { font-size:16px; margin-bottom:4px; }
+  .card .sub { font-size:12px; color:#57606a; margin-bottom:16px; }
+
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+  .field label { display:block; font-size:12px; font-weight:600; color:#57606a; margin-bottom:5px; }
+  .field input, .field select, .field textarea {
+    width:100%; padding:8px 10px; font-size:13px; border:1px solid #d0d7de;
+    border-radius:7px; background:#fff; color:#24292f; font-family:inherit;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { outline:none; border-color:#0969da; box-shadow:0 0 0 3px rgba(9,105,218,.12); }
+
+  /* ── Line-item table ── */
+  table.lines { width:100%; border-collapse:collapse; margin-top:6px; font-size:13px; }
+  table.lines th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#57606a; padding:8px 8px; border-bottom:1px solid #e6eaef; }
+  table.lines td { padding:6px 8px; border-bottom:1px solid #f0f2f5; vertical-align:middle; }
+  table.lines td input, table.lines td select { width:100%; padding:6px 8px; font-size:13px; border:1px solid #d0d7de; border-radius:6px; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .row-btn { background:none; border:none; color:#cf222e; cursor:pointer; font-size:16px; line-height:1; }
+  .add-line { margin-top:10px; padding:7px 14px; font-size:12px; font-weight:600; background:#f6f8fa; border:1px solid #d0d7de; border-radius:7px; cursor:pointer; }
+
+  .summary-strip { display:flex; gap:24px; flex-wrap:wrap; margin-top:16px; padding-top:16px; border-top:1px dashed #d0d7de; }
+  .stat { }
+  .stat .k { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#57606a; }
+  .stat .v { font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .stat .v.accent { color:#0969da; }
+
+  .actions { display:flex; gap:10px; margin-top:18px; flex-wrap:wrap; }
+  .btn-primary { padding:10px 22px; border:none; border-radius:8px; background:#0969da; color:#fff; font-weight:700; font-size:14px; cursor:pointer; }
+  .btn-primary:disabled { opacity:.45; cursor:not-allowed; }
+  .btn-secondary { padding:10px 18px; border:1px solid #d0d7de; border-radius:8px; background:#fff; color:#24292f; font-weight:600; font-size:14px; cursor:pointer; }
+
+  .hint { font-size:11px; color:#8a929b; margin-top:4px; }
+
+  /* ── Fetch list / detail ── */
+  .po-list { display:grid; gap:10px; }
+  .po-card { border:1px solid #d0d7de; border-radius:10px; padding:14px 16px; cursor:pointer; transition:border-color .15s,box-shadow .15s; }
+  .po-card:hover { border-color:#0969da; box-shadow:0 2px 8px rgba(9,105,218,.08); }
+  .po-card .row { display:flex; justify-content:space-between; gap:12px; align-items:baseline; }
+  .po-card .ref { font-weight:700; font-size:15px; }
+  .po-card .desc { font-size:13px; color:#57606a; }
+  .po-card .meta { font-size:12px; color:#8a929b; margin-top:4px; display:flex; gap:16px; flex-wrap:wrap; }
+  .pill { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:700; }
+  .pill.cost { background:#ddf4ff; color:#0969da; }
+  .empty { text-align:center; color:#8a929b; padding:40px 20px; font-size:14px; }
+
+  /* ── Printable document ── */
+  #print-doc { display:none; }
+  .doc { background:#fff; color:#111; padding:28px; border:1px solid #e6eaef; border-radius:12px; margin-top:16px; }
+  .doc-head { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #111; padding-bottom:14px; margin-bottom:18px; }
+  .doc-head h1 { font-size:22px; letter-spacing:.02em; }
+  .doc-head .biz { text-align:right; font-size:12px; color:#444; }
+  .doc-meta { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:18px; }
+  .doc-meta .k { font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:#777; }
+  .doc-meta .v { font-size:14px; font-weight:600; }
+  table.doc-tbl { width:100%; border-collapse:collapse; font-size:13px; margin-bottom:18px; }
+  table.doc-tbl th { background:#f3f5f7; text-align:left; padding:9px 10px; font-size:11px; text-transform:uppercase; letter-spacing:.03em; border-bottom:2px solid #ccc; }
+  table.doc-tbl td { padding:8px 10px; border-bottom:1px solid #eee; }
+  table.doc-tbl tfoot td { font-weight:700; border-top:2px solid #ccc; border-bottom:none; }
+  .perunit-box { display:flex; justify-content:flex-end; }
+  .perunit-card { border:2px solid #0969da; border-radius:10px; padding:12px 20px; text-align:right; }
+  .perunit-card .k { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#0969da; }
+  .perunit-card .v { font-size:26px; font-weight:800; color:#0969da; font-variant-numeric:tabular-nums; }
+  .perunit-card .f { font-size:10px; color:#888; margin-top:3px; }
+
+  @media print {
+    body * { visibility:hidden; }
+    #print-doc, #print-doc * { visibility:visible; }
+    #print-doc { display:block !important; position:absolute; left:0; top:0; width:100%; padding:0; }
+    .doc { border:none; border-radius:0; margin:0; padding:10px; }
+    @page { margin:16mm; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Control bar wired to the mandated loader -->
+<div class="ctrl-bar">
+  <button class="load-btn" id="load-btn" onclick="loadAllRecords()">⬇ Load All Records</button>
+  <div class="prog-wrap"><div class="prog-bar" id="prog-bar"></div></div>
+  <span class="status-txt" id="status-txt">Press Load to fetch inventory items &amp; production orders from Manager</span>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" id="tab-create-btn" onclick="switchTab('create')">＋ Create Production Order</button>
+  <button class="tab-btn" id="tab-fetch-btn" onclick="switchTab('fetch')">🖨 Fetch &amp; Print</button>
+</div>
+
+<!-- App shell; render() fills #app with messages, panels live below -->
+<div id="app"></div>
+
+<!-- ════════ TAB: CREATE ════════ -->
+<div class="tab-panel active" id="panel-create">
+  <div class="card">
+    <h2>New Production Order</h2>
+    <p class="sub">Build a production order, add a <strong>Budgeted Qty</strong> per material line, and post it directly to Manager.</p>
+
+    <div class="grid2">
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="po-date">
+      </div>
+      <div class="field">
+        <label>Reference</label>
+        <input type="text" id="po-ref" placeholder="Leave blank for automatic">
+        <div class="hint">Empty → Manager auto-numbers (automaticReference).</div>
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <input type="text" id="po-desc" placeholder="e.g. PO#52059">
+      </div>
+      <div class="field">
+        <label>Finished Inventory Item</label>
+        <select id="po-finished"><option value="">— Load records first —</option></select>
+      </div>
+      <div class="field">
+        <label>Finished Qty Produced</label>
+        <input type="number" id="po-qty" min="0" step="any" value="1" oninput="recalcCreate()">
+      </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="po-addnoninv" style="width:auto" onchange="recalcCreate()">
+          Add non-inventory cost into production
+        </label>
+        <div class="hint">Includes expense lines below in the cost base.</div>
+      </div>
+    </div>
+
+    <h2 style="margin-top:22px;font-size:14px">Bill of Materials (raw materials used)</h2>
+    <table class="lines" id="bom-table">
+      <thead>
+        <tr>
+          <th style="width:40%">Material</th>
+          <th style="width:14%" class="num">Qty Used</th>
+          <th style="width:16%" class="num">Budgeted Qty</th>
+          <th style="width:14%" class="num">Unit Cost</th>
+          <th style="width:14%" class="num">Line Cost</th>
+          <th style="width:2%"></th>
+        </tr>
+      </thead>
+      <tbody id="bom-body"></tbody>
+    </table>
+    <button class="add-line" onclick="addBomLine()">＋ Add material line</button>
+
+    <h2 style="margin-top:22px;font-size:14px">Expense Items (non-inventory cost)</h2>
+    <table class="lines" id="exp-table">
+      <thead>
+        <tr>
+          <th style="width:60%">Description / Account note</th>
+          <th style="width:22%" class="num">Amount</th>
+          <th style="width:2%"></th>
+        </tr>
+      </thead>
+      <tbody id="exp-body"></tbody>
+    </table>
+    <button class="add-line" onclick="addExpLine()">＋ Add expense line</button>
+
+    <div class="summary-strip">
+      <div class="stat"><div class="k">Raw Material Cost</div><div class="v" id="sum-mat">$0.00</div></div>
+      <div class="stat"><div class="k">Expense Cost</div><div class="v" id="sum-exp">$0.00</div></div>
+      <div class="stat"><div class="k">Total Cost</div><div class="v" id="sum-total">$0.00</div></div>
+      <div class="stat"><div class="k">Per-Unit Cost</div><div class="v accent" id="sum-perunit">$0.00</div></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" id="post-btn" onclick="submitProductionOrder()" disabled>Create Production Order</button>
+      <button class="btn-secondary" onclick="resetCreateForm()">Reset</button>
+    </div>
+    <div id="create-msg"></div>
+  </div>
+</div>
+
+<!-- ════════ TAB: FETCH & PRINT ════════ -->
+<div class="tab-panel" id="panel-fetch">
+  <div class="card">
+    <h2>Production Orders</h2>
+    <p class="sub">Select an order to open a customised, printable page with an automated <strong>per-unit cost</strong>.</p>
+    <div class="po-list" id="po-list"><div class="empty">Load records to list production orders.</div></div>
+  </div>
+  <div id="po-detail"></div>
+</div>
+
+<!-- Hidden print surface -->
+<div id="print-doc"></div>
+
+<script>
+/* ══════════════════════════════════
+   postMessage helper — DO NOT MODIFY
+══════════════════════════════════ */
+function postMessageWithResponse(message) {
+  return new Promise((resolve, reject) => {
+    const requestId = crypto.randomUUID();
+    const timer = setTimeout(() => {
+      window.removeEventListener('message', handler);
+      reject(new Error('Timeout — is this running inside Manager.io?'));
+    }, 15000);
+    function handler(event) {
+      if (event.data?.type?.endsWith('-response') && event.data?.requestId === requestId) {
+        clearTimeout(timer);
+        window.removeEventListener('message', handler);
+        resolve(event.data.body);
+      }
+    }
+    window.addEventListener('message', handler);
+    window.parent.postMessage({ ...message, requestId }, '*');
+  });
+}
+
+/* ══════════════════════════════════
+   getInventoryItemBatch
+   Fetches ALL pages — DO NOT SIMPLIFY.
+   Manager.io returns ≤50 records per call.
+   This loop follows next_page_token until
+   every record is loaded.
+══════════════════════════════════ */
+async function getInventoryItemBatch(onProgress) {
+  const allItems = [];
+  let nextToken  = null;
+  let pageNum    = 0;
+  let apiTotal   = null;
+
+  do {
+    const path = nextToken
+      ? '/api4/inventory-item-batch?PageSize=99999&next_page_token=' + encodeURIComponent(nextToken)
+      : '/api4/inventory-item-batch?PageSize=99999';
+
+    const data = await postMessageWithResponse({ type: 'api-request', method: 'GET', path });
+
+    const page = Array.isArray(data) ? data : (data.items || data.data || []);
+    allItems.push(...page);
+
+    nextToken = data.next_page_token || data.nextPageToken || data._links?.next?.href || null;
+
+    if (apiTotal === null) {
+      apiTotal = data.totalCount ?? data.total ?? data.count ?? data._metadata?.totalCount ?? null;
+    }
+
+    pageNum++;
+    if (onProgress) onProgress(allItems.length, apiTotal, pageNum);
+    if (pageNum >= 1000) break;
+
+  } while (nextToken);
+
+  return allItems;
+}
+
+/* ══════════════════════════════════
+   getProductionOrderBatch
+   Same paginated pattern — follows
+   next_page_token until all orders load.
+══════════════════════════════════ */
+async function getProductionOrderBatch(onProgress) {
+  const allItems = [];
+  let nextToken  = null;
+  let pageNum    = 0;
+  let apiTotal   = null;
+
+  do {
+    const path = nextToken
+      ? '/api4/production-order-batch?PageSize=99999&next_page_token=' + encodeURIComponent(nextToken)
+      : '/api4/production-order-batch?PageSize=99999';
+
+    const data = await postMessageWithResponse({ type: 'api-request', method: 'GET', path });
+
+    const page = Array.isArray(data) ? data : (data.items || data.data || []);
+    allItems.push(...page);
+
+    nextToken = data.next_page_token || data.nextPageToken || data._links?.next?.href || null;
+    if (apiTotal === null) {
+      apiTotal = data.totalCount ?? data.total ?? data.count ?? data._metadata?.totalCount ?? null;
+    }
+
+    pageNum++;
+    if (onProgress) onProgress(allItems.length, apiTotal, pageNum);
+    if (pageNum >= 1000) break;
+
+  } while (nextToken);
+
+  return allItems;
+}
+
+/* ══════════════════════════════════
+   Global state + helpers
+══════════════════════════════════ */
+let INVENTORY = [];          // raw inventory-item-batch rows
+let PRODUCTION = [];         // raw production-order-batch rows
+let COST_MAP   = {};         // inventory key -> unit cost
+let NAME_MAP   = {};         // inventory key -> display name
+
+const fmt = v => '$' + (Number(v) || 0).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 });
+const num = v => (Number(v) || 0).toLocaleString(undefined, { maximumFractionDigits:4 });
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function fmtDate(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return isNaN(dt) ? esc(d) : dt.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+}
+
+/* Best-effort unit cost for an inventory item: prefer purchase price, fall back to sales price. */
+function unitCostOf(it) {
+  return Number(it?.defaultPurchaseUnitPrice) || Number(it?.defaultSalesUnitPrice) || 0;
+}
+
+/* ══════════════════════════════════
+   loadAllRecords — wired to Load button
+   Loads inventory (cost basis + finished-item
+   picker) AND production orders.
+══════════════════════════════════ */
+async function loadAllRecords() {
+  const btn    = document.getElementById('load-btn');
+  const bar    = document.getElementById('prog-bar');
+  const status = document.getElementById('status-txt');
+  const app    = document.getElementById('app');
+
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+  bar.style.width = '0%';
+  app.innerHTML = '';
+
+  try {
+    // 1) Inventory items (cost lookup + dropdown source)
+    status.textContent = 'Loading inventory items…';
+    INVENTORY = await getInventoryItemBatch((loaded, total, page) => {
+      status.textContent = total
+        ? `Inventory · page ${page} · ${loaded.toLocaleString()} / ${total.toLocaleString()}`
+        : `Inventory · page ${page} · ${loaded.toLocaleString()} loaded…`;
+      if (total) bar.style.width = Math.min(45, Math.round(loaded / total * 45)) + '%';
+    });
+
+    // 2) Production orders
+    status.textContent = 'Loading production orders…';
+    PRODUCTION = await getProductionOrderBatch((loaded, total, page) => {
+      status.textContent = total
+        ? `Production orders · page ${page} · ${loaded.toLocaleString()} / ${total.toLocaleString()}`
+        : `Production orders · page ${page} · ${loaded.toLocaleString()} loaded…`;
+      bar.style.width = (50 + Math.min(45, page * 5)) + '%';
+    });
+
+    // Build lookup maps keyed by inventory item key
+    COST_MAP = {}; NAME_MAP = {};
+    for (const row of INVENTORY) {
+      const it = row?.item || {};
+      const key = row?.key || it?.key;
+      if (!key) continue;
+      COST_MAP[key] = unitCostOf(it);
+      NAME_MAP[key] = it?.nameWithCode || it?.itemName || it?.itemCode || key;
+    }
+
+    bar.style.width = '100%';
+    status.textContent = `✓ ${INVENTORY.length} inventory items · ${PRODUCTION.length} production orders`;
+    btn.textContent = '↺ Reload';
+    btn.disabled = false;
+    render();
+
+  } catch (err) {
+    status.textContent = '⚠ ' + err.message;
+    btn.textContent = '↺ Retry';
+    btn.disabled = false;
+    app.innerHTML = `<div class="err-box">⚠ ${esc(err.message)}<br><small>Make sure this is running inside Manager.io</small></div>`;
+  }
+}
+
+/* ══════════════════════════════════
+   render — populates both tabs once data is ready
+══════════════════════════════════ */
+function render() {
+  const app = document.getElementById('app');
+  if (!INVENTORY.length) {
+    app.innerHTML = `<div class="err-box">No inventory items found. The finished-item picker and cost lookups need at least one inventory item.</div>`;
+  } else {
+    app.innerHTML = `<div class="ok-box">Loaded ${INVENTORY.length} inventory items and ${PRODUCTION.length} production orders. You can now create or fetch orders.</div>`;
+  }
+
+  // Populate finished-item dropdown
+  const sel = document.getElementById('po-finished');
+  sel.innerHTML = '<option value="">— Select finished item —</option>' +
+    INVENTORY.map(r => {
+      const it = r?.item || {};
+      const key = r?.key || it?.key;
+      return `<option value="${esc(key)}">${esc(it?.nameWithCode || it?.itemName || key)}</option>`;
+    }).join('');
+
+  // Enable create button + seed one BOM line if empty
+  document.getElementById('post-btn').disabled = false;
+  if (!document.getElementById('bom-body').children.length) addBomLine();
+  if (!document.getElementById('exp-body').children.length) addExpLine();
+  recalcCreate();
+
+  renderPoList();
+}
+
+/* ══════════════════════════════════
+   Tab switching
+══════════════════════════════════ */
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.getElementById('tab-' + name + '-btn').classList.add('active');
+}
+
+/* ══════════════════════════════════
+   CREATE — Bill of Materials lines
+   Each line carries the extra "Budgeted Qty" column.
+══════════════════════════════════ */
+function materialOptions(selected) {
+  return '<option value="">— Select material —</option>' +
+    INVENTORY.map(r => {
+      const it = r?.item || {};
+      const key = r?.key || it?.key;
+      const sel = key === selected ? ' selected' : '';
+      return `<option value="${esc(key)}"${sel}>${esc(it?.nameWithCode || it?.itemName || key)}</option>`;
+    }).join('');
+}
+
+function addBomLine() {
+  const tb = document.getElementById('bom-body');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><select class="bom-mat" onchange="recalcCreate()">${materialOptions('')}</select></td>
+    <td class="num"><input type="number" class="bom-qty num" min="0" step="any" value="1" oninput="recalcCreate()"></td>
+    <td class="num"><input type="number" class="bom-budget num" min="0" step="any" value="0" placeholder="0" oninput="recalcCreate()"></td>
+    <td class="num bom-unit">$0.00</td>
+    <td class="num bom-line">$0.00</td>
+    <td><button class="row-btn" title="Remove" onclick="this.closest('tr').remove();recalcCreate()">✕</button></td>`;
+  tb.appendChild(tr);
+}
+
+function addExpLine() {
+  const tb = document.getElementById('exp-body');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" class="exp-note" placeholder="e.g. Labour / overhead"></td>
+    <td class="num"><input type="number" class="exp-amt num" min="0" step="any" value="0" oninput="recalcCreate()"></td>
+    <td><button class="row-btn" title="Remove" onclick="this.closest('tr').remove();recalcCreate()">✕</button></td>`;
+  tb.appendChild(tr);
+}
+
+/* Live recalculation of cost + per-unit cost in the create form */
+function recalcCreate() {
+  let matTotal = 0;
+  document.querySelectorAll('#bom-body tr').forEach(tr => {
+    const key  = tr.querySelector('.bom-mat')?.value || '';
+    const qty  = Number(tr.querySelector('.bom-qty')?.value) || 0;
+    const unit = COST_MAP[key] || 0;
+    const line = unit * qty;
+    matTotal += line;
+    tr.querySelector('.bom-unit').textContent = fmt(unit);
+    tr.querySelector('.bom-line').textContent = fmt(line);
+  });
+
+  let expTotal = 0;
+  const includeExp = document.getElementById('po-addnoninv').checked;
+  document.querySelectorAll('#exp-body tr').forEach(tr => {
+    expTotal += Number(tr.querySelector('.exp-amt')?.value) || 0;
+  });
+
+  const totalCost = matTotal + (includeExp ? expTotal : 0);
+  const prodQty   = Number(document.getElementById('po-qty').value) || 0;
+  const perUnit   = prodQty > 0 ? totalCost / prodQty : 0;   // guard divide-by-zero
+
+  document.getElementById('sum-mat').textContent     = fmt(matTotal);
+  document.getElementById('sum-exp').textContent     = fmt(expTotal) + (includeExp ? '' : ' (excl.)');
+  document.getElementById('sum-total').textContent   = fmt(totalCost);
+  document.getElementById('sum-perunit').textContent = fmt(perUnit);
+}
+
+function resetCreateForm() {
+  document.getElementById('po-ref').value = '';
+  document.getElementById('po-desc').value = '';
+  document.getElementById('po-finished').value = '';
+  document.getElementById('po-qty').value = '1';
+  document.getElementById('po-addnoninv').checked = false;
+  document.getElementById('bom-body').innerHTML = '';
+  document.getElementById('exp-body').innerHTML = '';
+  document.getElementById('create-msg').innerHTML = '';
+  setToday();
+  addBomLine(); addExpLine(); recalcCreate();
+}
+
+function setToday() {
+  document.getElementById('po-date').value = new Date().toISOString().slice(0,10);
+}
+
+/* ══════════════════════════════════
+   CREATE — build payload & POST
+   Mirrors the production-order schema; native
+   fields only. "Budgeted Qty" is an extension
+   planning column (Manager has no native field
+   for it) so it is preserved in the description.
+══════════════════════════════════ */
+function submitProductionOrder() {
+  const msg = document.getElementById('create-msg');
+  msg.innerHTML = '';
+
+  const finished = document.getElementById('po-finished').value;
+  const prodQty  = Number(document.getElementById('po-qty').value) || 0;
+
+  // Collect BOM lines
+  const bomLines = [];
+  const budgets  = [];
+  document.querySelectorAll('#bom-body tr').forEach(tr => {
+    const key = tr.querySelector('.bom-mat')?.value || '';
+    const qty = Number(tr.querySelector('.bom-qty')?.value) || 0;
+    const bud = Number(tr.querySelector('.bom-budget')?.value) || 0;
+    if (key) {
+      bomLines.push({ billOfMaterials: key, qty: qty, obsolete_Qty: null });
+      budgets.push(`${NAME_MAP[key] || key}: budget ${bud}`);
+    }
+  });
+
+  // Collect expense lines
+  const expItems = [];
+  document.querySelectorAll('#exp-body tr').forEach(tr => {
+    const amt = Number(tr.querySelector('.exp-amt')?.value) || 0;
+    if (amt) expItems.push({ account: null, amount: amt, division: null });
+  });
+  if (!expItems.length) expItems.push({ account: null, amount: 0, division: null });
+
+  // Validate
+  if (!finished) { msg.innerHTML = `<div class="err-box">Please select a finished inventory item.</div>`; return; }
+  if (prodQty <= 0) { msg.innerHTML = `<div class="err-box">Finished qty must be greater than zero.</div>`; return; }
+  if (!bomLines.length) { msg.innerHTML = `<div class="err-box">Add at least one material line.</div>`; return; }
+
+  const ref = document.getElementById('po-ref').value.trim();
+  let desc  = document.getElementById('po-desc').value.trim();
+  // Preserve budgeted-qty planning data inside description (non-native field)
+  if (budgets.length) desc = (desc ? desc + ' | ' : '') + 'Budgeted: ' + budgets.join('; ');
+
+  const dateVal = document.getElementById('po-date').value;
+  const isoDate = dateVal ? new Date(dateVal + 'T00:00:00').toISOString() : new Date().toISOString();
+
+  // Payload — native production-order shape (modelled on the real batch record)
+  const payload = {
+    value: {
+      date: isoDate,
+      reference: ref || null,
+      inventoryLocation: null,
+      description: desc || null,
+      finishedInventoryItem: finished,
+      qty: prodQty,
+      billOfMaterials: bomLines,
+      addNonInventoryCostIntoProduction: document.getElementById('po-addnoninv').checked,
+      expenseItems: expItems,
+      customTheme: false,
+      customThemeId: null,
+      customFields: null,
+      customFields2: { strings:null, decimals:null, dates:null, booleans:null, stringArrays:null, images:null },
+      automaticReference: !ref,
+      obsolete_ExpenseAccount: null,
+      obsolete_Amount: null,
+      obsolete_JournalEntry: null,
+      obsolete_Reference: null,
+      obsolete_Qty: null,
+      transactionTitle: null
+    },
+    business: null
+  };
+
+  const btn = document.getElementById('post-btn');
+  btn.disabled = true; btn.textContent = 'Posting…';
+
+  postMessageWithResponse({ type:'api-request', method:'POST', path:'/api4/production-order', body: payload })
+    .then(resp => {
+      const newKey = resp?.key || resp?.id || (typeof resp === 'string' ? resp : null);
+      msg.innerHTML = `<div class="ok-box">✓ Production order created${newKey ? ' (key: ' + esc(newKey) + ')' : ''}. Reload records to see it in Fetch &amp; Print.</div>`;
+      btn.textContent = 'Create Production Order'; btn.disabled = false;
+    })
+    .catch(err => {
+      msg.innerHTML = `<div class="err-box">⚠ Could not create order: ${esc(err.message)}</div>`;
+      btn.textContent = 'Create Production Order'; btn.disabled = false;
+    });
+}
+
+/* ══════════════════════════════════
+   FETCH — compute per-unit cost for an order
+   Formula: total raw-material cost (+ expenses if
+   flagged) ÷ finished-goods qty produced.
+   Material cost is resolved via the inventory cost
+   map keyed by the BOM line's reference UUID.
+══════════════════════════════════ */
+function computeOrderCost(item) {
+  let matTotal = 0;
+  let resolved = 0, totalLines = 0;
+  const lines = Array.isArray(item?.billOfMaterials) ? item.billOfMaterials : [];
+  const detail = lines.map(l => {
+    totalLines++;
+    const key  = l?.billOfMaterials;
+    const qty  = Number(l?.qty) || 0;
+    const unit = COST_MAP[key];
+    const known = unit !== undefined;
+    if (known) resolved++;
+    const u = unit || 0;
+    const line = u * qty;
+    matTotal += line;
+    return { name: known ? (NAME_MAP[key] || key) : (key || '—'), qty, unit:u, line, known };
+  });
+
+  let expTotal = 0;
+  (Array.isArray(item?.expenseItems) ? item.expenseItems : []).forEach(e => { expTotal += Number(e?.amount) || 0; });
+  const includeExp = !!item?.addNonInventoryCostIntoProduction;
+
+  const totalCost = matTotal + (includeExp ? expTotal : 0);
+  const prodQty   = Number(item?.qty) || 0;
+  const perUnit   = prodQty > 0 ? totalCost / prodQty : 0;   // guard divide-by-zero
+
+  return { detail, matTotal, expTotal, includeExp, totalCost, prodQty, perUnit, resolved, totalLines };
+}
+
+/* List of production orders */
+function renderPoList() {
+  const wrap = document.getElementById('po-list');
+  if (!PRODUCTION.length) {
+    wrap.innerHTML = `<div class="empty">No production orders found.</div>`;
+    return;
+  }
+  wrap.innerHTML = PRODUCTION.map((row, idx) => {
+    const it = row?.item || {};
+    const c  = computeOrderCost(it);
+    const ref = it?.reference || it?.text || '(no ref)';
+    return `
+      <div class="po-card" onclick="openOrder(${idx})">
+        <div class="row">
+          <span class="ref">#${esc(ref)}</span>
+          <span class="pill cost">${fmt(c.perUnit)} / unit</span>
+        </div>
+        <div class="desc">${esc(it?.description || '—')}</div>
+        <div class="meta">
+          <span>${fmtDate(it?.date)}</span>
+          <span>Finished: ${esc(NAME_MAP[it?.finishedInventoryItem] || it?.finishedInventoryItem || '—')}</span>
+          <span>Qty: ${num(it?.qty)}</span>
+          <span>Total cost: ${fmt(c.totalCost)}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+/* Customised, printable detail view */
+function openOrder(idx) {
+  const row = PRODUCTION[idx];
+  const it  = row?.item || {};
+  const c   = computeOrderCost(it);
+  const ref = it?.reference || it?.text || '(no ref)';
+  const finishedName = NAME_MAP[it?.finishedInventoryItem] || it?.finishedInventoryItem || '—';
+
+  const unresolvedNote = (c.totalLines && c.resolved < c.totalLines)
+    ? `<div class="err-box" style="margin-top:12px">Note: ${c.totalLines - c.resolved} of ${c.totalLines} material line(s) could not be matched to a priced inventory item, so the per-unit cost may be understated. Materials created through this extension match automatically.</div>`
+    : '';
+
+  const rowsHtml = c.detail.map(d => `
+    <tr>
+      <td>${esc(d.name)}${d.known ? '' : ' <span style="color:#cf222e;font-size:11px">(unpriced)</span>'}</td>
+      <td class="num">${num(d.qty)}</td>
+      <td class="num">${fmt(d.unit)}</td>
+      <td class="num">${fmt(d.line)}</td>
+    </tr>`).join('') || `<tr><td colspan="4" style="text-align:center;color:#888">No material lines</td></tr>`;
+
+  const expRows = (Array.isArray(it?.expenseItems) ? it.expenseItems : [])
+    .filter(e => Number(e?.amount))
+    .map(e => `<tr><td>Expense / non-inventory cost</td><td class="num"></td><td class="num"></td><td class="num">${fmt(e.amount)}</td></tr>`).join('');
+
+  const docHtml = `
+    <div class="doc">
+      <div class="doc-head">
+        <h1>Production Order</h1>
+        <div class="biz">
+          <div><strong>Production Order #${esc(ref)}</strong></div>
+          <div>${fmtDate(it?.date)}</div>
+        </div>
+      </div>
+
+      <div class="doc-meta">
+        <div><div class="k">Reference</div><div class="v">${esc(ref)}</div></div>
+        <div><div class="k">Date</div><div class="v">${fmtDate(it?.date)}</div></div>
+        <div><div class="k">Finished Item</div><div class="v">${esc(finishedName)}</div></div>
+        <div><div class="k">Qty Produced</div><div class="v">${num(it?.qty)}</div></div>
+        <div style="grid-column:1/-1"><div class="k">Description</div><div class="v">${esc(it?.description || '—')}</div></div>
+      </div>
+
+      <table class="doc-tbl">
+        <thead>
+          <tr><th>Raw Material</th><th class="num">Qty Used</th><th class="num">Unit Cost</th><th class="num">Line Cost</th></tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+          ${expRows}
+        </tbody>
+        <tfoot>
+          <tr><td colspan="3">Total Raw Material Cost</td><td class="num">${fmt(c.matTotal)}</td></tr>
+          <tr><td colspan="3">Expense Cost ${c.includeExp ? '(included)' : '(excluded)'}</td><td class="num">${fmt(c.expTotal)}</td></tr>
+          <tr><td colspan="3">Total Production Cost</td><td class="num">${fmt(c.totalCost)}</td></tr>
+        </tfoot>
+      </table>
+
+      <div class="perunit-box">
+        <div class="perunit-card">
+          <div class="k">Per-Unit Cost</div>
+          <div class="v">${fmt(c.perUnit)}</div>
+          <div class="f">Total cost ${fmt(c.totalCost)} ÷ ${num(c.prodQty)} unit(s)</div>
+        </div>
+      </div>
+    </div>`;
+
+  // On-screen detail (with print button) + hidden print surface
+  document.getElementById('po-detail').innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px">
+        <h2 style="margin:0">Order #${esc(ref)} — customised view</h2>
+        <div style="display:flex;gap:10px">
+          <button class="btn-primary" onclick="printOrder()">🖨 Print / Save as PDF</button>
+          <button class="btn-secondary" onclick="document.getElementById('po-detail').innerHTML=''">Close</button>
+        </div>
+      </div>
+      ${unresolvedNote}
+      ${docHtml}
+    </div>`;
+  document.getElementById('print-doc').innerHTML = docHtml;
+  document.getElementById('po-detail').scrollIntoView({ behavior:'smooth' });
+}
+
+/* Trigger browser print dialog → user picks "Save as PDF" */
+function printOrder() { window.print(); }
+
+/* Initialise */
+setToday();
+</script>
+</body>
+</html>
