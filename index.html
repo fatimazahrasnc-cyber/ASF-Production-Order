@@ -469,18 +469,19 @@ async function fetchUnitCostFor(invKey) {
 }
 
 /* ══════════════════════════════════
-   DATE-BASED WEIGHTED-AVERAGE COST
-   Returns the average unit cost of every inventory item AS IT STOOD on a
-   given date — the weighted-average stock valuation prevailing on the order's
-   Delivery Date — by asking Manager to recalculate inventory cost at that date
-   (valuationMethod = 1 → weighted average). Read-only (GET): it never POSTs a
-   worksheet, so it cannot mutate the business's stored data.
+   DATE-BASED UNIT COST (matches Manager's own rule)
+   Manager's "Inventory Unit Costs" screen holds a unit cost per item per date.
+   When an item is consumed in a production order, Manager picks the unit cost
+   whose date is the latest ON OR BEFORE the transaction date. We replicate that
+   exactly: for the order's Delivery Date, each material's Rate = the unitCost of
+   its most recent unit-cost record dated ≤ Delivery Date.
 
-   Result is cached per calendar date. On any failure it falls back to the live
-   COST_MAP so Rate/Amount still render (flagged as live rather than historical).
+   This is a purely LOCAL, read-only lookup over the records already pulled by
+   getInventoryUnitCostBatch() — no extra API calls, no POST, nothing written
+   back. Results are cached per calendar date.
 ══════════════════════════════════ */
-const VALUATION_WEIGHTED_AVERAGE = 1;   // matches the worksheet's valuationMethod
-let COST_BY_DATE = {};                   // 'YYYY-MM-DD' -> { invKey: unitCost }
+let UNIT_COST_HISTORY = {};   // invKey -> [{ dayK:'YYYY-MM-DD', cost, date }] ascending by date
+let COST_BY_DATE      = {};   // 'YYYY-MM-DD' -> { map, asOf, historical }
 
 function dayKey(dateIso) {
   if (!dateIso) return '';
@@ -488,46 +489,33 @@ function dayKey(dateIso) {
   return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : (toDateInput(dateIso) || '').slice(0, 10);
 }
 
-/* Build an {invKey: unitCost} map from a recalculated-cost response (array, or
-   {items:[{key,item}]}, or {data:[...]}). Each record carries inventoryItem + unitCost. */
-function costMapFromRecalc(data) {
-  const rows = Array.isArray(data) ? data : (data?.items || data?.data || []);
-  const map = {};
-  for (const row of rows) {
-    const c = row?.item || row || {};
-    const invKey = c?.inventoryItem || c?.key;
-    if (!invKey) continue;
-    const cost = Number(c?.unitCost);
-    if (isFinite(cost)) map[invKey] = cost;
+/* Unit cost of one item prevailing on day `dk`: latest record dated ≤ dk.
+   If the date precedes every record, falls back to the earliest known cost. */
+function costAsOf(invKey, dk) {
+  const hist = UNIT_COST_HISTORY[invKey];
+  if (!hist || !hist.length) return null;
+  let chosen = null;
+  for (const h of hist) {        // hist is ascending by date
+    if (!h.dayK || h.dayK <= dk) chosen = h; else break;
   }
-  return map;
+  if (!chosen) chosen = hist[0]; // delivery date is before any recorded cost → earliest available
+  return chosen ? chosen.cost : null;
 }
 
-async function getCostMapAsOf(dateIso) {
+function getCostMapAsOf(dateIso) {
   const dk = dayKey(dateIso);
   if (!dk) return { map: COST_MAP, asOf: null, historical: false };
   if (COST_BY_DATE[dk]) return COST_BY_DATE[dk];
 
-  // Read-only attempts: recalculated inventory cost as of the date, weighted average.
-  const q = `date=${encodeURIComponent(dk)}&valuationMethod=${VALUATION_WEIGHTED_AVERAGE}`;
-  const candidates = [
-    '/api4/recalculated-inventory-cost?' + q,
-    '/api4/recalculated-inventory-cost?date=' + encodeURIComponent(dk),
-    '/api4/inventory-costing-calculation-worksheet-batch?' + q
-  ];
-
-  let result = null;
-  for (const path of candidates) {
-    try {
-      const data = await postMessageWithResponse({ type: 'api-request', method: 'GET', path });
-      const map = costMapFromRecalc(data);
-      if (Object.keys(map).length) { result = { map, asOf: dk, historical: true }; break; }
-    } catch (e) { /* try next */ }
+  const map = {};
+  let any = false;
+  for (const invKey in UNIT_COST_HISTORY) {
+    const c = costAsOf(invKey, dk);
+    if (c != null) { map[invKey] = c; any = true; }
   }
-
-  // Fallback: live average cost (clearly flagged as not date-specific)
-  if (!result) result = { map: COST_MAP, asOf: dk, historical: false };
-
+  const result = any
+    ? { map, asOf: dk, historical: true }
+    : { map: COST_MAP, asOf: dk, historical: false };  // no dated history at all → live fallback
   COST_BY_DATE[dk] = result;
   return result;
 }
@@ -752,9 +740,9 @@ async function loadAllRecords() {
       bar.style.width = (50 + Math.min(35, page * 5)) + '%';
     });
 
-    // 3) Real-time inventory average unit cost (the Rate column). Best-effort:
-    //    a failure here must not break order loading — Rate/Amount just show blank.
-    COST_MAP = {};
+    // 3) Inventory unit-cost records (one per item PER DATE — Manager's dated cost layers).
+    //    These drive the date-based Rate. Best-effort: a failure must not break loading.
+    COST_MAP = {}; UNIT_COST_HISTORY = {}; COST_BY_DATE = {};
     try {
       status.textContent = 'Loading inventory unit costs…';
       const unitCosts = await getInventoryUnitCostBatch((loaded, total, page) => {
@@ -763,12 +751,22 @@ async function loadAllRecords() {
           : `Unit costs · page ${page} · ${loaded.toLocaleString()} loaded…`;
         bar.style.width = (85 + Math.min(13, page * 3)) + '%';
       });
+      // Group every dated record by inventory item (FK = inventoryItem).
       for (const row of unitCosts) {
         const c = row?.item || row || {};
-        const invKey = c?.inventoryItem || c?.key;   // record FK is inventoryItem; fall back to key
+        const invKey = c?.inventoryItem || row?.key;   // prefer the item FK
         if (!invKey) continue;
         const cost = Number(c?.unitCost);
-        if (isFinite(cost)) COST_MAP[invKey] = cost;
+        if (!isFinite(cost)) continue;
+        (UNIT_COST_HISTORY[invKey] = UNIT_COST_HISTORY[invKey] || []).push({
+          dayK: dayKey(c?.date), cost, date: c?.date || null
+        });
+      }
+      // Sort each item's history ascending by date; the latest layer is the "live" cost.
+      for (const k in UNIT_COST_HISTORY) {
+        const arr = UNIT_COST_HISTORY[k];
+        arr.sort((a, b) => (a.dayK < b.dayK ? -1 : a.dayK > b.dayK ? 1 : 0));
+        COST_MAP[k] = arr[arr.length - 1].cost;
       }
     } catch (e) {
       console.warn('Unit cost load failed (Rate/Amount will be blank):', e);
@@ -1639,11 +1637,11 @@ async function openOrder(idx) {
   const row = PRODUCTION[idx];
   const it  = row?.item || {};
 
-  // Weighted-average cost prevailing on the order's DELIVERY DATE (native order date).
+  // Unit cost effective on the order's DELIVERY DATE (native order date), using
+  // Manager's dated Inventory Unit Cost layers — the same value Manager applies
+  // when the materials are consumed by the production order.
   const deliveryIso = deliveryDate(it);
-  const detailHost = document.getElementById('po-detail');
-  detailHost.innerHTML = `<div class="card"><div class="empty">Fetching weighted-average stock cost as of ${deliveryIso ? fmtDate(deliveryIso) : 'order date'}…</div></div>`;
-  const costInfo = await getCostMapAsOf(deliveryIso);
+  const costInfo = getCostMapAsOf(deliveryIso);
 
   const d   = buildOrderDetail(it, costInfo.map);
   const ref = it?.reference || it?.text || '(no ref)';
@@ -1655,10 +1653,10 @@ async function openOrder(idx) {
   const planDateStr = issueDate(it) ? fmtDate(issueDate(it)) : '';
   const imgSrc = d.image || orderImageSrc(it);
 
-  // Note shown on screen explaining the cost basis used for Rate/Amount.
+  // Screen-only note explaining the cost basis used for Rate/Amount.
   const costBasisNote = costInfo.historical
-    ? `Rate = weighted-average cost as of Delivery Date (${costInfo.asOf ? fmtDate(costInfo.asOf) : '—'}).`
-    : `Rate = current live average cost (date-specific cost for ${costInfo.asOf ? fmtDate(costInfo.asOf) : 'this date'} was unavailable).`;
+    ? `Rate = unit cost effective on the Delivery Date (${costInfo.asOf ? fmtDate(costInfo.asOf) : '—'}), from Manager's dated Inventory Unit Costs.`
+    : `Rate = latest available unit cost — no dated Inventory Unit Cost records were loaded, so a date-specific value for ${costInfo.asOf ? fmtDate(costInfo.asOf) : 'this date'} couldn't be applied.`;
 
   const fmtC = n => n ? Number(n).toLocaleString(undefined, { maximumFractionDigits: 3 }) : '';
   const fmtR = n => n ? Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '';
