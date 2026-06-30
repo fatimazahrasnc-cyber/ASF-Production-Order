@@ -51,7 +51,7 @@
 
   /* ── Line-item table ── */
   table.lines { width:100%; border-collapse:collapse; margin-top:6px; font-size:13px; }
-  table.lines th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#57606a; padding:8px 8px; border-bottom:1px solid #e6eaef; }
+  table.lines th { text-align:left; font-size:11px; text-transform:none; letter-spacing:0; color:#57606a; padding:8px 8px; border-bottom:1px solid #e6eaef; }
   table.lines td { padding:6px 8px; border-bottom:1px solid #f0f2f5; vertical-align:middle; }
   table.lines td input, table.lines td select { width:100%; padding:6px 8px; font-size:13px; border:1px solid #d0d7de; border-radius:6px; }
   .num { text-align:right; font-variant-numeric:tabular-nums; }
@@ -71,6 +71,16 @@
 
   .hint { font-size:11px; color:#8a929b; margin-top:4px; }
 
+  /* ── Searchable combobox ── */
+  .combo { position:relative; }
+  .combo-input { width:100%; padding:8px 10px; font-size:13px; border:1px solid #d0d7de; border-radius:7px; background:#fff; color:#24292f; font-family:inherit; }
+  .combo-input:focus { outline:none; border-color:#0969da; box-shadow:0 0 0 3px rgba(9,105,218,.12); }
+  table.lines .combo-input { padding:6px 8px; }
+  .combo-list { position:absolute; z-index:60; left:0; right:0; top:calc(100% + 3px); max-height:240px; overflow:auto; background:#fff; border:1px solid #d0d7de; border-radius:8px; box-shadow:0 8px 24px rgba(27,31,36,.14); display:none; }
+  .combo-opt { padding:7px 10px; font-size:13px; cursor:pointer; }
+  .combo-opt:hover, .combo-opt.active { background:#ddf4ff; }
+  .combo-empty { padding:8px 10px; font-size:12px; color:#8a929b; }
+
   /* ── Fetch list / detail ── */
   .po-list { display:grid; gap:10px; }
   .po-card { border:1px solid #d0d7de; border-radius:10px; padding:14px 16px; cursor:pointer; transition:border-color .15s,box-shadow .15s; }
@@ -86,28 +96,81 @@
   /* ── Printable document ── */
   #print-doc { display:none; }
   .doc { background:#fff; color:#111; padding:28px; border:1px solid #e6eaef; border-radius:12px; margin-top:16px; }
-  .doc-head { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #111; padding-bottom:14px; margin-bottom:18px; }
-  .doc-head h1 { font-size:22px; letter-spacing:.02em; }
-  .doc-head .biz { text-align:right; font-size:12px; color:#444; }
-  .doc-meta { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:18px; }
-  .doc-meta .k { font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:#777; }
-  .doc-meta .v { font-size:14px; font-weight:600; }
-  table.doc-tbl { width:100%; border-collapse:collapse; font-size:13px; margin-bottom:18px; }
-  table.doc-tbl th { background:#f3f5f7; text-align:left; padding:9px 10px; font-size:11px; text-transform:uppercase; letter-spacing:.03em; border-bottom:2px solid #ccc; }
-  table.doc-tbl td { padding:8px 10px; border-bottom:1px solid #eee; }
-  table.doc-tbl tfoot td { font-weight:700; border-top:2px solid #ccc; border-bottom:none; }
-  .perunit-box { display:flex; justify-content:flex-end; }
-  .perunit-card { border:2px solid #0969da; border-radius:10px; padding:12px 20px; text-align:right; }
-  .perunit-card .k { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#0969da; }
-  .perunit-card .v { font-size:26px; font-weight:800; color:#0969da; font-variant-numeric:tabular-nums; }
-  .perunit-card .f { font-size:10px; color:#888; margin-top:3px; }
+  /* ── Issue Note / Consuming Sheet print layout ── */
+  .issue-note { border:1.5px solid #000; font-size:11px; color:#000; }
+  .note-company { text-align:center; font-style:italic; font-weight:800; font-size:15px; padding:5px; border-bottom:1.5px solid #000; letter-spacing:.03em; }
+  .note-head { display:flex; align-items:stretch; border-bottom:1.5px solid #000; }
+  .note-head-left { flex:1 1 50%; border-right:1.5px solid #000; display:flex; flex-direction:column; }
+  .note-head-right { flex:1 1 50%; display:flex; flex-direction:column; }
+  table.detail-table { border-collapse:collapse; width:100%; }
+  table.detail-table th { text-align:left; width:44%; border:1px solid #000; padding:3px 7px; font-size:11px; font-weight:700; background:#d9d9d9; }
+  table.detail-table td { border:1px solid #000; padding:3px 7px; font-size:11px; text-align:center; }
+  .assortment { flex:1; display:flex; align-items:center; justify-content:center; font-weight:700; letter-spacing:.14em; font-size:13px; padding:10px; }
+  .note-type { text-align:center; font-size:12px; padding:5px; border-bottom:1px solid #000; }
+  .note-img-row { display:flex; border-bottom:1px solid #000; }
+  .note-img-cell { flex:1; display:flex; align-items:center; justify-content:center; padding:4px; border-right:1px solid #000; min-height:80px; }
+  .note-img-cell img { max-width:160px; max-height:98px; object-fit:contain; }
+  .plandate-cell { width:118px; display:flex; flex-direction:column; }
+  .plandate-cell .pd-label { text-align:center; font-weight:700; padding:3px; border-bottom:1px solid #000; }
+  .plandate-cell .pd-val { flex:1; display:flex; align-items:center; justify-content:center; padding:3px; }
+  table.size-print { border-collapse:collapse; width:100%; table-layout:fixed; }
+  table.size-print th, table.size-print td { border:1px solid #000; padding:3px 2px; text-align:center; font-size:12px; height:22px; }
+  table.size-print th { background:#d9d9d9; font-weight:700; }
+  table.dept { border-collapse:collapse; width:100%; }
+  table.dept th, table.dept td { border:1px solid #000; padding:3px 5px; font-size:10.5px; vertical-align:middle; }
+  .dept-title td { text-align:center; font-weight:800; background:#d9d9d9; padding:4px; letter-spacing:.02em; }
+  .dept-title.italic td { font-style:italic; font-size:13px; }
+  table.dept thead th { background:#e9e9e9; font-weight:700; text-align:center; }
+  table.dept td.l { text-align:left; }
+  table.dept td.c { text-align:center; }
+  table.dept td.r { text-align:right; }
+  .sig-row { display:flex; justify-content:space-around; gap:18px; padding:36px 16px 16px; }
+  .sig-row .sig { flex:1; text-align:center; }
+  .sig-row .sig .line { border-top:1px solid #000; margin:0 6px 4px; height:0; }
+  .sig-row .sig .lbl { font-weight:700; font-size:11px; }
+
+  /* ── Department BOM sections (form) ── */
+  .bom-section { margin-top:18px; padding-top:6px; border-top:1px solid #e6eaef; }
+  .bom-section:first-child { border-top:none; }
+  .bom-section-head { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .bom-section-num { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background:#0969da; color:#fff; font-size:12px; font-weight:700; flex:none; }
+  .bom-section-title { font-size:14px; font-weight:700; color:#24292f; border:1px solid transparent; border-radius:6px; padding:4px 8px; background:#f6f8fa; min-width:280px; }
+  .bom-section-title:focus { outline:none; border-color:#0969da; background:#fff; box-shadow:0 0 0 3px rgba(9,105,218,.12); }
+
+  /* ── Header detail table (label / value) ── */
+  .hdr-layout { display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; }
+  .hdr-left { flex:1 1 360px; min-width:320px; }
+  .hdr-right { display:flex; flex-direction:column; gap:12px; align-items:flex-start; }
+  table.hdr-table { border-collapse:collapse; width:100%; }
+  table.hdr-table th { text-align:left; width:200px; background:#f6f8fa; border:1px solid #d0d7de; padding:8px 12px; font-size:13px; font-weight:600; color:#24292f; vertical-align:middle; }
+  table.hdr-table td { border:1px solid #d0d7de; padding:5px 8px; vertical-align:middle; }
+  table.hdr-table td input { width:100%; border:1px solid transparent; border-radius:6px; padding:6px 8px; font-size:13px; font-family:inherit; background:transparent; color:#24292f; }
+  table.hdr-table td input:focus { outline:none; border-color:#0969da; box-shadow:0 0 0 3px rgba(9,105,218,.12); background:#fff; }
+  table.hdr-table .hint { margin-top:2px; }
+  table.hdr-table .combo-input { border-color:#d0d7de; }
+
+  /* ── Image custom field ── */
+  .po-image-drop { width:240px; height:130px; border:2px dashed #d0d7de; border-radius:10px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#8a929b; font-size:13px; overflow:hidden; background:#fafbfc; text-align:center; }
+  .po-image-drop:hover { border-color:#0969da; color:#0969da; }
+  .po-image-drop img { width:100%; height:100%; object-fit:contain; }
+
+  /* ── Size / pairs breakdown ── */
+  .blk-label { display:block; font-size:12px; font-weight:600; color:#57606a; margin:16px 0 4px; }
+  table.size-grid { border-collapse:collapse; }
+  table.size-grid th, table.size-grid td { border:1px solid #d0d7de; padding:3px 6px; text-align:center; font-size:13px; min-width:52px; }
+  table.size-grid th { background:#f6f8fa; font-weight:700; }
+  table.size-grid .size-in { width:54px; border:none; text-align:center; font-size:13px; padding:5px 2px; background:transparent; }
+  table.size-grid .size-in:focus { outline:none; background:#eef5ff; }
+  table.size-grid .size-total { font-weight:700; background:#f6f8fa; }
 
   @media print {
     body * { visibility:hidden; }
     #print-doc, #print-doc * { visibility:visible; }
     #print-doc { display:block !important; position:absolute; left:0; top:0; width:100%; padding:0; }
-    .doc { border:none; border-radius:0; margin:0; padding:10px; }
-    @page { margin:16mm; }
+    .issue-note { border-width:1.5px; }
+    table.dept { break-inside:avoid; page-break-inside:avoid; }
+    .sig-row { break-inside:avoid; }
+    @page { margin:10mm; }   /* orientation left to the user's print dialog */
   }
 </style>
 </head>
@@ -131,75 +194,103 @@
 <!-- ════════ TAB: CREATE ════════ -->
 <div class="tab-panel active" id="panel-create">
   <div class="card">
-    <h2>New Production Order</h2>
-    <p class="sub">Build a production order, add a <strong>Budgeted Qty</strong> per material line, and post it directly to Manager.</p>
+    <h2 id="create-title">New Production Order</h2>
+    <p class="sub" id="create-sub">Enter the order details and the <strong>Required</strong> and <strong>Issued</strong> quantity for each raw material, then post it to Manager.</p>
+    <div id="edit-banner"></div>
 
-    <div class="grid2">
-      <div class="field">
-        <label>Date</label>
-        <input type="date" id="po-date">
+    <div class="hdr-layout">
+      <div class="hdr-left">
+    <table class="hdr-table">
+      <tbody>
+        <tr>
+          <th>Delivery Date</th>
+          <td><input type="date" id="po-delivery"></td>
+        </tr>
+        <tr>
+          <th>Plan Date</th>
+          <td><input type="date" id="po-date"></td>
+        </tr>
+        <tr>
+          <th>Batch</th>
+          <td>
+            <input type="text" id="po-ref" placeholder="Auto: previous + 1">
+            <div class="hint">Auto-filled as the highest existing batch number + 1. Editable.</div>
+          </td>
+        </tr>
+        <tr>
+          <th>Article Name</th>
+          <td>
+            <div class="combo" id="po-finished" data-value="">
+              <input type="text" class="combo-input" autocomplete="off" placeholder="Load records first"
+                     onfocus="comboOpen(this)" oninput="comboFilter(this)" onkeydown="comboKey(event,this)" onblur="comboBlur(this)">
+              <div class="combo-list"></div>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <th>Finished Qty</th>
+          <td>
+            <input type="number" id="po-qty" min="0" step="any" value="0" readonly>
+            <div class="hint">Linked to Total Pairs from the size table.</div>
+          </td>
+        </tr>
+        <tr>
+          <th>Customer</th>
+          <td><input type="text" id="po-customer" placeholder="(print only)"></td>
+        </tr>
+        <tr>
+          <th>Color</th>
+          <td><input type="text" id="po-color" placeholder="(print only)"></td>
+        </tr>
+        <tr>
+          <th>Shoe Shape</th>
+          <td><input type="text" id="po-shape" placeholder="(print only)"></td>
+        </tr>
+        <tr>
+          <th>PO#</th>
+          <td><input type="text" id="po-desc" placeholder="e.g. PO#52059"></td>
+        </tr>
+      </tbody>
+    </table>
       </div>
-      <div class="field">
-        <label>Reference</label>
-        <input type="text" id="po-ref" placeholder="Auto: previous + 1">
-        <div class="hint">Auto-filled as the highest existing reference + 1. Editable.</div>
-      </div>
-      <div class="field">
-        <label>Description</label>
-        <input type="text" id="po-desc" placeholder="e.g. PO#52059">
-      </div>
-      <div class="field">
-        <label>Finished Inventory Item</label>
-        <select id="po-finished"><option value="">— Load records first —</option></select>
-      </div>
-      <div class="field">
-        <label>Finished Qty Produced</label>
-        <input type="number" id="po-qty" min="0" step="any" value="1" oninput="recalcCreate()">
-      </div>
-      <div class="field">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-          <input type="checkbox" id="po-addnoninv" style="width:auto" onchange="recalcCreate()">
-          Add non-inventory cost into production
-        </label>
-        <div class="hint">Includes expense lines below in the cost base.</div>
+
+      <div class="hdr-right">
+        <div>
+          <label class="blk-label" style="margin-top:0">Image</label>
+          <input type="file" id="po-image-file" accept="image/*" onchange="onImagePicked(event)" style="display:none">
+          <div id="po-image-drop" class="po-image-drop" onclick="document.getElementById('po-image-file').click()">
+            <span>Click to add image</span>
+          </div>
+          <button type="button" class="btn-secondary" id="po-image-clear" style="display:none;margin-top:6px;padding:4px 10px;font-size:12px" onclick="clearImage()">Remove image</button>
+        </div>
+
+        <div>
+          <label class="blk-label" style="margin-top:0">Size Breakdown — Pairs per Size (print only)</label>
+          <table class="size-grid" id="size-grid">
+            <tbody>
+              <tr><th>36</th><th>37</th><th>38</th><th>39</th><th>40</th></tr>
+              <tr>
+                <td><input type="number" min="0" step="any" class="size-in" data-size="36" oninput="recalcSizes()"></td>
+                <td><input type="number" min="0" step="any" class="size-in" data-size="37" oninput="recalcSizes()"></td>
+                <td><input type="number" min="0" step="any" class="size-in" data-size="38" oninput="recalcSizes()"></td>
+                <td><input type="number" min="0" step="any" class="size-in" data-size="39" oninput="recalcSizes()"></td>
+                <td><input type="number" min="0" step="any" class="size-in" data-size="40" oninput="recalcSizes()"></td>
+              </tr>
+              <tr><th>41</th><th>42</th><th>43</th><th colspan="2">Total Pairs</th></tr>
+              <tr>
+                <td><input type="number" min="0" step="any" class="size-in" data-size="41" oninput="recalcSizes()"></td>
+                <td><input type="number" min="0" step="any" class="size-in" data-size="42" oninput="recalcSizes()"></td>
+                <td><input type="number" min="0" step="any" class="size-in" data-size="43" oninput="recalcSizes()"></td>
+                <td class="size-total" id="size-total" colspan="2">0</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <h2 style="margin-top:22px;font-size:14px">Bill of Materials (raw materials used)</h2>
-    <table class="lines" id="bom-table">
-      <thead>
-        <tr>
-          <th style="width:40%">Material</th>
-          <th style="width:14%" class="num">Qty Used</th>
-          <th style="width:16%" class="num">Budgeted Qty</th>
-          <th style="width:14%" class="num">Unit Cost</th>
-          <th style="width:14%" class="num">Line Cost</th>
-          <th style="width:2%"></th>
-        </tr>
-      </thead>
-      <tbody id="bom-body"></tbody>
-    </table>
-    <button class="add-line" onclick="addBomLine()">＋ Add material line</button>
-
-    <h2 style="margin-top:22px;font-size:14px">Expense Items (non-inventory cost)</h2>
-    <table class="lines" id="exp-table">
-      <thead>
-        <tr>
-          <th style="width:60%">Description / Account note</th>
-          <th style="width:22%" class="num">Amount</th>
-          <th style="width:2%"></th>
-        </tr>
-      </thead>
-      <tbody id="exp-body"></tbody>
-    </table>
-    <button class="add-line" onclick="addExpLine()">＋ Add expense line</button>
-
-    <div class="summary-strip">
-      <div class="stat"><div class="k">Raw Material Cost</div><div class="v" id="sum-mat">Rs 0.00</div></div>
-      <div class="stat"><div class="k">Expense Cost</div><div class="v" id="sum-exp">Rs 0.00</div></div>
-      <div class="stat"><div class="k">Total Cost</div><div class="v" id="sum-total">Rs 0.00</div></div>
-      <div class="stat"><div class="k">Per-Unit Cost</div><div class="v accent" id="sum-perunit">Rs 0.00</div></div>
-    </div>
+    <h2 style="margin-top:22px;font-size:14px">Bill of Materials (raw materials)</h2>
+    <div id="bom-sections"></div>
 
     <div class="actions">
       <button class="btn-primary" id="post-btn" onclick="submitProductionOrder()" disabled>Create Production Order</button>
@@ -323,10 +414,23 @@ async function getProductionOrderBatch(onProgress) {
 ══════════════════════════════════ */
 let INVENTORY = [];          // raw inventory-item-batch rows
 let PRODUCTION = [];         // raw production-order-batch rows
-let COST_MAP   = {};         // inventory key -> unit cost
-let NAME_MAP   = {};         // inventory key -> display name
+let NAME_MAP   = {};         // inventory key -> display name (with code)
+let ARTICLE_MAP= {};         // inventory key -> item name only (no item code)
+let UNIT_MAP   = {};         // inventory key -> unit of measurement
+let EDIT_KEY   = null;       // key of order being edited (null = create mode)
+let EDIT_ITEM  = null;       // original item being edited (to preserve untouched fields)
 
-const fmt = v => 'Rs ' + (Number(v) || 0).toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
+// "Issue Sheet Date" custom field — used as the order date instead of the native date
+const ISSUE_DATE_KEY = '019ef39a-2cad-7697-bc07-6d4bc9ce1e36';
+// Image custom field key (saved to customFields2.images on the production order)
+const IMAGE_KEY = '019f06a8-529d-721f-b3d8-e211c9b9d6e3';
+// OPTIONAL: a multi-line Text custom field key to hold the extension's print-only data
+// (sizes, sections, per-line extras, customer/color/shape). When set, the data is stored
+// there and the Manager Description stays clean. Leave '' to fall back to the description.
+const DATA_FIELD_KEY = '019f0c43-4be2-72b1-a913-9b753c5d6eb0';
+const COMPANY_NAME = 'AS FOOTWEAR';   // printed at the top of the issue note
+let PO_IMAGE = '';   // current form image as a data URL (empty = none)
+
 const num = v => (Number(v) || 0).toLocaleString('en-IN', { maximumFractionDigits:4 });
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function fmtDate(d) {
@@ -334,33 +438,145 @@ function fmtDate(d) {
   const dt = new Date(d);
   return isNaN(dt) ? esc(d) : dt.toLocaleDateString('en-GB', { year:'numeric', month:'short', day:'numeric' });
 }
-
-/* Best-effort unit cost for an inventory item: prefer purchase price, fall back to sales price. */
-function unitCostOf(it) {
-  return Number(it?.defaultPurchaseUnitPrice) || Number(it?.defaultSalesUnitPrice) || 0;
+/* Today's calendar date as YYYY-MM-DD using LOCAL components (no UTC shift) */
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
+/* Convert any stored date value to a YYYY-MM-DD for a <input type=date>, using LOCAL
+   components so an order saved at local midnight is not pushed to the previous day. */
+function toDateInput(d) {
+  if (!d) return todayStr();
+  const dt = new Date(d);
+  if (isNaN(dt)) return String(d).slice(0,10);
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+}
+/* Store a date input value as a local-midnight stamp WITHOUT timezone conversion
+   (matches Manager's "YYYY-MM-DDT00:00:00" format and avoids the off-by-one). */
+function dateForBackend(val) {
+  return (val && /^\d{4}-\d{2}-\d{2}$/.test(val)) ? val + 'T00:00:00' : todayStr() + 'T00:00:00';
+}
+/* Order date = Issue Sheet Date custom field, falling back to the native date */
+function orderDate(it) {
+  return it?.customFields2?.dates?.[ISSUE_DATE_KEY] || it?.date || null;
+}
+/* Delivery Date = native production-order date */
+function deliveryDate(it) { return it?.date || null; }
+/* Issue Sheet Date = custom field (fallback native) */
+function issueDate(it) { return it?.customFields2?.dates?.[ISSUE_DATE_KEY] || it?.date || null; }
 
-/* ── Budgeted-Qty persistence ──
-   Manager has no native budgeted-qty field, so we
-   stash a machine-readable tag at the end of the
-   description on create, then parse it back out into
-   its own column on fetch/print and hide the tag from
-   the visible description. */
-const BUD_RE = /\u27E6BUD:([^\u27E7]*)\u27E7/;   // ⟦BUD:key=qty|key=qty⟧
-function encodeBudgets(map) {
+/* ── Print-only per-line data persistence ──
+   Manager has no native fields for Description, Composition, Required,
+   Issued or Remarks, so on create/update we stash them in the description.
+   The current format is a single ⟦POX:<base64 JSON>⟧ tag holding one entry
+   per material line (index-aligned to billOfMaterials), which safely carries
+   free text. We also still READ the older ⟦BUD:…⟧ / ⟦AQI:…⟧ tags and the
+   human-readable "| Budgeted: Name: budget N; …" format for existing orders.
+   None of this affects a material's actual backend quantity. */
+const POX_RE    = /\u27E6POX:([^\u27E7]*)\u27E7/;           // ⟦POX:base64⟧ (per-line array)
+const IMG_RE    = /\u27E6IMG:([^\u27E7]*)\u27E7/;           // ⟦IMG:rawBase64⟧ (image, single-encoded)
+const BUD_RE    = /\u27E6BUD:([^\u27E7]*)\u27E7/;            // ⟦BUD:key=qty|key=qty⟧
+const AQI_RE    = /\u27E6AQI:([^\u27E7]*)\u27E7/;            // ⟦AQI:key=qty|key=qty⟧
+const LEGACY_RE = /\s*\|?\s*Budgeted:\s*([^\u27E6]*)$/i;     // | Budgeted: Name: budget N; …
+
+function b64encodeUnicode(str) { return btoa(unescape(encodeURIComponent(str))); }
+function b64decodeUnicode(b64) { return decodeURIComponent(escape(atob(b64))); }
+
+/* v2 format: { v:2, sec?, sz?, meta?, ln:[{ s, i?, d?, c?, tc?, rate?, m? }] }, only including
+   non-default / non-empty parts. The image is NOT here — it lives in its own ⟦IMG:…⟧ tag. */
+function encodeLineExtras(sectionTitles, lines, sizes, pmeta) {
+  const hasAny = lines.some(l => (Number(l.i)||0) || (l.d||'').trim() || (l.c||'').toString().trim() || (l.rate||'').toString().trim() || (l.m||'').trim());
+  const hasCustomTitles = (sectionTitles || []).some((t, i) => (t||'').trim() !== (DEFAULT_SECTIONS[i] || '').trim());
+  const hasSizes = sizes && Object.keys(sizes).length > 0;
+  const hasMeta = pmeta && (pmeta.cust || pmeta.col || pmeta.shp);
+  if (!hasAny && !hasCustomTitles && !hasSizes && !hasMeta) return '';
+  // Trim each line to only its populated fields (section index always kept for grouping)
+  const ln = lines.map(l => {
+    const o = { s: l.s || 0 };
+    if (Number(l.i)) o.i = Number(l.i);
+    if ((l.d || '').trim()) o.d = l.d;
+    if ((l.c || '').toString().trim()) o.c = l.c;
+    if ((l.cf || '').toString().trim()) o.cf = l.cf;
+    if ((l.rate || '').toString().trim()) o.rate = l.rate;
+    if ((l.m || '').trim()) o.m = l.m;
+    return o;
+  });
+  const obj = { v: 2, ln };
+  if (hasCustomTitles) obj.sec = sectionTitles;
+  if (hasSizes) obj.sz = sizes;
+  if (hasMeta) obj.meta = pmeta;
+  try { return `\u27E6POX:${b64encodeUnicode(JSON.stringify(obj))}\u27E7`; }
+  catch (e) { return ''; }
+}
+/* Image stored as its own single-encoded tag so a large image can never corrupt the
+   structured data and isn't needlessly double-base64'd. `raw` = base64 (no data: prefix). */
+function encodeImageTag(raw) {
+  return raw ? `\u27E6IMG:${raw}\u27E7` : '';
+}
+function encodeTag(prefix, map) {
   const parts = Object.entries(map).filter(([k,v]) => k && Number(v) > 0).map(([k,v]) => `${k}=${v}`);
-  return parts.length ? `\u27E6BUD:${parts.join('|')}\u27E7` : '';
+  return parts.length ? `\u27E6${prefix}:${parts.join('|')}\u27E7` : '';
 }
-function parseBudgets(description) {
-  const out = { map:{}, clean:(description || '').toString() };
-  const m = out.clean.match(BUD_RE);
+function parseTagInto(re, clean, target) {
+  const m = clean.match(re);
   if (m) {
     m[1].split('|').forEach(pair => {
       const [k, v] = pair.split('=');
-      if (k) out.map[k] = Number(v) || 0;
+      if (k) target[k] = Number(v) || 0;
     });
-    out.clean = out.clean.replace(BUD_RE, '').replace(/\s*\|\s*$/,'').trim();
+    clean = clean.replace(re, '').trim();
   }
+  return clean;
+}
+function parseBudgets(itemOrDesc) {
+  // Accept either the order item (preferred) or a plain description string
+  const isItem = itemOrDesc && typeof itemOrDesc === 'object';
+  const desc = isItem ? (itemOrDesc.description || '').toString() : (itemOrDesc || '').toString();
+  const out = { byIndex:null, sections:null, sizes:null, meta:null, image:null, map:{}, actualMap:{}, nameMap:{}, clean: desc };
+
+  // POX may live in a dedicated Text custom field (keeps Description clean) or in the description
+  const fieldData = (isItem && DATA_FIELD_KEY) ? (itemOrDesc?.customFields2?.strings?.[DATA_FIELD_KEY] || '') : '';
+  const poxSource = fieldData || out.clean;
+  const pm = poxSource.match(POX_RE);
+  if (pm) {
+    try {
+      const obj = JSON.parse(b64decodeUnicode(pm[1]));
+      if (Array.isArray(obj)) { out.byIndex = obj; }                          // v1: bare array, single section
+      else if (obj && Array.isArray(obj.ln)) {
+        out.byIndex = obj.ln;
+        out.sections = Array.isArray(obj.sec) ? obj.sec : null;
+        out.sizes = (obj.sz && typeof obj.sz === 'object') ? obj.sz : null;
+        out.meta = (obj.meta && typeof obj.meta === 'object') ? obj.meta : null;
+        out.image = obj.img ? imgValueToSrc(obj.img) : null;   // legacy: image once lived inside POX
+      }
+    } catch (e) {}
+    // Strip the tag from the description only if that's where it was
+    if (!fieldData) out.clean = out.clean.replace(POX_RE, '').trim();
+  }
+
+  // Standalone image tag ⟦IMG:rawBase64⟧ (current format) — takes priority over legacy
+  const im = poxSource.match(IMG_RE);
+  if (im) {
+    out.image = imgValueToSrc(im[1]) || out.image;
+    if (!fieldData) out.clean = out.clean.replace(IMG_RE, '').trim();
+  }
+
+  // Older formats: ⟦BUD:uuid=qty|…⟧ and ⟦AQI:uuid=qty|…⟧ (keyed by material UUID)
+  out.clean = parseTagInto(BUD_RE, out.clean, out.map);
+  out.clean = parseTagInto(AQI_RE, out.clean, out.actualMap);
+
+  // Legacy format: "Budgeted: Name: budget N; Name2: budget M" (keyed by item name)
+  const lm = out.clean.match(LEGACY_RE);
+  if (lm) {
+    lm[1].split(';').forEach(seg => {
+      const mm = seg.trim().match(/^(.*?):\s*budget\s*([\d.]+)$/i);
+      if (mm) out.nameMap[mm[1].trim()] = Number(mm[2]) || 0;
+    });
+    out.clean = out.clean.replace(LEGACY_RE, '').trim();
+  }
+
+  // Tidy any leftover separators
+  out.clean = out.clean.replace(/\s*\|\s*$/,'').replace(/^\s*\|\s*/,'').trim();
   return out;
 }
 
@@ -412,13 +628,14 @@ async function loadAllRecords() {
     });
 
     // Build lookup maps keyed by inventory item key
-    COST_MAP = {}; NAME_MAP = {};
+    NAME_MAP = {}; ARTICLE_MAP = {}; UNIT_MAP = {};
     for (const row of INVENTORY) {
       const it = row?.item || row || {};
       const key = row?.key || it?.key;
       if (!key) continue;
-      COST_MAP[key] = unitCostOf(it);
       NAME_MAP[key] = it?.nameWithCode || it?.itemName || it?.itemCode || key;
+      ARTICLE_MAP[key] = it?.itemName || it?.nameWithCode || key;
+      UNIT_MAP[key] = it?.unitName || '';
     }
 
     bar.style.width = '100%';
@@ -446,29 +663,105 @@ function render() {
     app.innerHTML = `<div class="ok-box">Loaded ${INVENTORY.length} inventory items and ${PRODUCTION.length} production orders. You can now create or fetch orders.</div>`;
   }
 
-  // Populate finished-item dropdown with ALL inventory items
-  const sel = document.getElementById('po-finished');
-  const prevFinished = sel.value;
-  sel.innerHTML = '<option value="">— Select finished item —</option>' + inventoryOptionsHtml(prevFinished);
+  // Resolve the finished-item combo label from its stored value
+  const fin = document.getElementById('po-finished');
+  const finInput = fin.querySelector('.combo-input');
+  finInput.placeholder = 'Search finished item…';
+  finInput.value = fin.dataset.value ? (NAME_MAP[fin.dataset.value] || fin.dataset.value) : '';
 
-  // Refresh any material-line dropdowns that already exist, keeping their selection
-  document.querySelectorAll('#bom-body .bom-mat').forEach(s => {
-    const keep = s.value;
-    s.innerHTML = materialOptions(keep);
+  // Build the six department sections if not already present
+  if (!document.querySelector('#bom-sections .bom-section')) renderBomSections();
+
+  // Refresh any existing material-line combos (resolve labels + units)
+  document.querySelectorAll('#bom-sections .bom-mat-combo').forEach(combo => {
+    const input = combo.querySelector('.combo-input');
+    input.placeholder = 'Search material…';
+    input.value = combo.dataset.value ? (NAME_MAP[combo.dataset.value] || combo.dataset.value) : '';
+    comboOnPick(combo);
   });
 
-  // Enable create button + seed one BOM line if empty
+  // Enable create button
   document.getElementById('post-btn').disabled = false;
-  if (!document.getElementById('bom-body').children.length) addBomLine();
-  if (!document.getElementById('exp-body').children.length) addExpLine();
 
   // Auto-fill reference (highest existing + 1) if the field is empty
   const refEl = document.getElementById('po-ref');
   if (!refEl.value.trim()) refEl.value = nextReference();
 
-  recalcCreate();
-
   renderPoList();
+}
+
+/* ══════════════════════════════════
+   Searchable combobox engine (self-contained).
+   Each combo is <div class="combo" data-value="KEY">
+   with a .combo-input and a .combo-list. Options are
+   built live from INVENTORY so search always reflects
+   the full, current list.
+══════════════════════════════════ */
+function comboOptionList(filter) {
+  const f = (filter || '').trim().toLowerCase();
+  return sortedInventory().map(invFields).filter(o => o.key && (!f || o.label.toLowerCase().includes(f)));
+}
+function comboRenderList(combo, filter) {
+  const list = combo.querySelector('.combo-list');
+  const opts = comboOptionList(filter);
+  list.innerHTML = opts.length
+    ? opts.map(o => `<div class="combo-opt" data-key="${esc(o.key)}">${esc(o.label)}${o.inactive ? ' (inactive)' : ''}</div>`).join('')
+    : `<div class="combo-empty">No matching items</div>`;
+  list.style.display = 'block';
+}
+function comboOpen(input) {
+  if (!INVENTORY.length) return;
+  comboRenderList(input.closest('.combo'), '');
+}
+function comboFilter(input) {
+  const combo = input.closest('.combo');
+  combo.dataset.value = '';            // typing invalidates the selection until re-picked
+  comboRenderList(combo, input.value);
+}
+function comboKey(e, input) {
+  const combo = input.closest('.combo');
+  const list = combo.querySelector('.combo-list');
+  if (list.style.display !== 'block' && (e.key === 'ArrowDown')) { comboOpen(input); return; }
+  const opts = Array.from(list.querySelectorAll('.combo-opt'));
+  if (!opts.length) return;
+  let i = opts.findIndex(o => o.classList.contains('active'));
+  if (e.key === 'ArrowDown') { e.preventDefault(); i = Math.min(opts.length - 1, i + 1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); i = Math.max(0, i - 1); }
+  else if (e.key === 'Enter') { e.preventDefault(); if (i >= 0) comboPick(combo, opts[i].dataset.key); return; }
+  else if (e.key === 'Escape') { list.style.display = 'none'; return; }
+  else return;
+  opts.forEach(o => o.classList.remove('active'));
+  if (opts[i]) { opts[i].classList.add('active'); opts[i].scrollIntoView({ block:'nearest' }); }
+}
+function comboBlur(input) {
+  const combo = input.closest('.combo');
+  setTimeout(() => {
+    combo.querySelector('.combo-list').style.display = 'none';
+    // Reconcile typed text: exact label match selects it; otherwise revert to current value's label
+    const typed = input.value.trim().toLowerCase();
+    const match = comboOptionList('').find(o => o.label.toLowerCase() === typed);
+    if (match) comboPick(combo, match.key, true);
+    else input.value = combo.dataset.value ? (NAME_MAP[combo.dataset.value] || combo.dataset.value) : '';
+  }, 150);
+}
+function comboPick(combo, key, silent) {
+  combo.dataset.value = key;
+  combo.querySelector('.combo-input').value = NAME_MAP[key] || key;
+  combo.querySelector('.combo-list').style.display = 'none';
+  comboOnPick(combo);
+}
+/* Side-effects after a pick: keep a material row's Unit cell in sync */
+function comboOnPick(combo) {
+  if (combo.classList.contains('bom-mat-combo')) {
+    const cell = combo.closest('tr')?.querySelector('.bom-unit');
+    if (cell) cell.textContent = UNIT_MAP[combo.dataset.value] || '—';
+  }
+}
+function comboValue(combo) { return combo?.dataset?.value || ''; }
+function comboSetValue(combo, key) {
+  combo.dataset.value = key || '';
+  combo.querySelector('.combo-input').value = key ? (NAME_MAP[key] || key) : '';
+  comboOnPick(combo);
 }
 
 /* ══════════════════════════════════
@@ -494,16 +787,6 @@ function sortedInventory() {
   });
 }
 
-/* <option> list for ALL inventory items; marks the given key selected. */
-function inventoryOptionsHtml(selected) {
-  return sortedInventory().map(row => {
-    const { key, label, inactive } = invFields(row);
-    if (!key) return '';
-    const sel = key === selected ? ' selected' : '';
-    return `<option value="${esc(key)}"${sel}>${esc(label)}${inactive ? ' (inactive)' : ''}</option>`;
-  }).join('');
-}
-
 /* ══════════════════════════════════
    Tab switching
 ══════════════════════════════════ */
@@ -515,217 +798,574 @@ function switchTab(name) {
 }
 
 /* ══════════════════════════════════
-   CREATE — Bill of Materials lines
-   Each line carries the extra "Budgeted Qty" column.
+   CREATE — Department BOM sections.
+   The production order is split into six department sections.
+   Each material line records its section index so the order
+   regroups correctly on edit and print.
 ══════════════════════════════════ */
-function materialOptions(selected) {
-  if (!INVENTORY.length) return '<option value="">— Load records first —</option>';
-  return '<option value="">— Select material —</option>' + inventoryOptionsHtml(selected);
-}
+const DEFAULT_SECTIONS = ['CUTTING', 'CLOSING', 'IN-OUT SOLE', 'LASTING & FINISHING+PACKING', 'COSTING & PLANNING DEPARTMENT'];
+const SECTION_COUNT = DEFAULT_SECTIONS.length;
 
-function addBomLine() {
-  const tb = document.getElementById('bom-body');
-  const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td><select class="bom-mat" onchange="recalcCreate()">${materialOptions('')}</select></td>
-    <td class="num"><input type="number" class="bom-qty num" min="0" step="any" value="1" oninput="recalcCreate()"></td>
-    <td class="num"><input type="number" class="bom-budget num" min="0" step="any" value="0" placeholder="0" oninput="recalcCreate()"></td>
-    <td class="num bom-unit">Rs 0.00</td>
-    <td class="num bom-line">Rs 0.00</td>
-    <td><button class="row-btn" title="Remove" onclick="this.closest('tr').remove();recalcCreate()">✕</button></td>`;
-  tb.appendChild(tr);
+/* Print-only size breakdown */
+const SIZES = ['36','37','38','39','40','41','42','43'];
+function recalcSizes() {
+  let total = 0;
+  document.querySelectorAll('#size-grid .size-in').forEach(i => { total += Number(i.value) || 0; });
+  const cell = document.getElementById('size-total');
+  if (cell) cell.textContent = total ? num(total) : '0';
+  // Finished Qty is linked to Total Pairs: drive it when any sizes are entered
+  const qty = document.getElementById('po-qty');
+  if (qty && total > 0) qty.value = total;
+  recalcTotalConsume();
 }
-
-function addExpLine() {
-  const tb = document.getElementById('exp-body');
-  const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td><input type="text" class="exp-note" placeholder="e.g. Labour / overhead"></td>
-    <td class="num"><input type="number" class="exp-amt num" min="0" step="any" value="0" oninput="recalcCreate()"></td>
-    <td><button class="row-btn" title="Remove" onclick="this.closest('tr').remove();recalcCreate()">✕</button></td>`;
-  tb.appendChild(tr);
-}
-
-/* Live recalculation of cost + per-unit cost in the create form */
-function recalcCreate() {
-  let matTotal = 0;
-  document.querySelectorAll('#bom-body tr').forEach(tr => {
-    const key  = tr.querySelector('.bom-mat')?.value || '';
-    const qty  = Number(tr.querySelector('.bom-qty')?.value) || 0;
-    const unit = COST_MAP[key] || 0;
-    const line = unit * qty;
-    matTotal += line;
-    tr.querySelector('.bom-unit').textContent = fmt(unit);
-    tr.querySelector('.bom-line').textContent = fmt(line);
+function getSizes() {
+  const out = {};
+  document.querySelectorAll('#size-grid .size-in').forEach(i => {
+    const v = Number(i.value) || 0;
+    if (v > 0) out[i.dataset.size] = v;
   });
-
-  let expTotal = 0;
-  const includeExp = document.getElementById('po-addnoninv').checked;
-  document.querySelectorAll('#exp-body tr').forEach(tr => {
-    expTotal += Number(tr.querySelector('.exp-amt')?.value) || 0;
+  return out;
+}
+function setSizes(sz) {
+  document.querySelectorAll('#size-grid .size-in').forEach(i => {
+    const v = sz && Number(sz[i.dataset.size]) ? Number(sz[i.dataset.size]) : '';
+    i.value = v || '';
   });
+  recalcSizes();
+}
+function sizeTablePrintHtml(sz) {
+  const v = s => { const n = Number(sz && sz[s]) || 0; return n > 0 ? num(n) : ''; };
+  const total = SIZES.reduce((t, s) => t + (Number(sz && sz[s]) || 0), 0);
+  const r1 = ['36','37','38','39','40'], r2 = ['41','42','43'];
+  return `
+    <table class="size-print">
+      <tr>${r1.map(s => `<th>${s}</th>`).join('')}</tr>
+      <tr>${r1.map(s => `<td>${v(s)}</td>`).join('')}</tr>
+      <tr>${r2.map(s => `<th>${s}</th>`).join('')}<th colspan="2">Total Pairs</th></tr>
+      <tr>${r2.map(s => `<td>${v(s)}</td>`).join('')}<td colspan="2">${total > 0 ? num(total) : ''}</td></tr>
+    </table>`;
+}
 
-  const totalCost = matTotal + (includeExp ? expTotal : 0);
-  const prodQty   = Number(document.getElementById('po-qty').value) || 0;
-  const perUnit   = prodQty > 0 ? totalCost / prodQty : 0;   // guard divide-by-zero
+/* ── Image custom field helpers ── */
+/* Turn a raw base64 (no prefix) into a data URL, detecting type from magic bytes */
+function b64ToDataUrl(b64, hint) {
+  const s = String(b64).replace(/\s+/g, '');
+  let mime = 'image/png';
+  if (s.startsWith('/9j/')) mime = 'image/jpeg';
+  else if (s.startsWith('iVBOR')) mime = 'image/png';
+  else if (s.startsWith('R0lGOD')) mime = 'image/gif';
+  else if (s.startsWith('UklGR')) mime = 'image/webp';
+  else if (hint) {
+    const h = String(hint).toLowerCase();
+    if (h.includes('jpg') || h.includes('jpeg')) mime = 'image/jpeg';
+    else if (h.includes('gif')) mime = 'image/gif';
+    else if (h.includes('webp')) mime = 'image/webp';
+  }
+  return 'data:' + mime + ';base64,' + s;
+}
+/* Coerce any value Manager might return for an image field into a displayable src */
+function imgValueToSrc(v) {
+  if (!v) return '';
+  if (typeof v === 'string') return v.startsWith('data:') ? v : b64ToDataUrl(v);
+  if (Array.isArray(v)) { for (const x of v) { const s = imgValueToSrc(x); if (s) return s; } return ''; }
+  if (typeof v === 'object') {
+    const hint = v.contentType || v.mimeType || v.type || v.name || v.fileName || '';
+    for (const k of ['dataUrl', 'dataURL', 'url', 'href', 'src', 'base64', 'data', 'content', 'bytes', 'value', 'image']) {
+      if (typeof v[k] === 'string' && v[k]) return v[k].startsWith('data:') ? v[k] : b64ToDataUrl(v[k], hint);
+    }
+    // Fallback: any long string value on the object is probably the image data
+    for (const k in v) { if (typeof v[k] === 'string' && v[k].length > 100) return v[k].startsWith('data:') ? v[k] : b64ToDataUrl(v[k], hint); }
+  }
+  return '';
+}
+/* Read the order's image custom field from either customFields2 or legacy customFields */
+function orderImageSrc(it) {
+  const cf2 = it?.customFields2?.images;
+  const cf1 = it?.customFields?.images;
+  let src = '';
+  if (cf2 && typeof cf2 === 'object') src = imgValueToSrc(cf2[IMAGE_KEY]) || imgValueToSrc(Object.values(cf2)[0]);
+  if (!src && cf1 && typeof cf1 === 'object') src = imgValueToSrc(cf1[IMAGE_KEY]) || imgValueToSrc(Object.values(cf1)[0]);
+  return src;
+}
+/* Strip a data URL prefix so we store raw base64 (what Manager's image field expects) */
+function stripDataUrlPrefix(d) {
+  const s = String(d || '');
+  const i = s.indexOf('base64,');
+  return i >= 0 ? s.slice(i + 7) : s;
+}
+/* The batch endpoint can omit image bytes (returns images:{}). When we have no image
+   from the batch item, fetch the single production order to retrieve it. */
+async function fetchOrderImageSrc(it, key) {
+  const id = it?.id || it?.key || key;
+  if (!id) return '';
+  const paths = [
+    '/api4/production-order?id=' + encodeURIComponent(id),
+    '/api4/production-order/' + encodeURIComponent(id)
+  ];
+  for (const p of paths) {
+    try {
+      const r = await postMessageWithResponse({ type: 'api-request', method: 'GET', path: p });
+      const src = orderImageSrc(r?.value || {}) || orderImageSrc(r?.item || {}) || orderImageSrc(r || {});
+      if (src) return src;
+    } catch (e) { /* try next path */ }
+  }
+  return '';
+}
+/* Show current PO_IMAGE in the form drop zone */
+function renderImagePreview() {
+  const drop = document.getElementById('po-image-drop');
+  const clr  = document.getElementById('po-image-clear');
+  if (!drop) return;
+  if (PO_IMAGE) {
+    drop.innerHTML = `<img src="${PO_IMAGE}" alt="order image">`;
+    if (clr) clr.style.display = '';
+  } else {
+    drop.innerHTML = `<span>Click to add image</span>`;
+    if (clr) clr.style.display = 'none';
+  }
+}
+/* Read + downscale a chosen image to bound payload size, store as data URL */
+function onImagePicked(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    // Capture the original immediately so the pick always works, even if downscaling fails
+    PO_IMAGE = reader.result;
+    renderImagePreview();
+    // Best-effort downscale to keep the payload small (non-blocking)
+    try {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const maxDim = 200;
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            const k = Math.min(maxDim / width, maxDim / height);
+            width = Math.round(width * k); height = Math.round(height * k);
+          }
+          const c = document.createElement('canvas');
+          c.width = width; c.height = height;
+          c.getContext('2d').drawImage(img, 0, 0, width, height);
+          const scaled = c.toDataURL('image/jpeg', 0.85);
+          if (scaled && scaled.length > 30) { PO_IMAGE = scaled; renderImagePreview(); }
+        } catch (e) { /* keep original */ }
+      };
+      img.onerror = () => { /* keep original */ };
+      img.src = reader.result;
+    } catch (e) { /* keep original */ }
+  };
+  reader.onerror = () => { alert('Could not read the image file.'); };
+  reader.readAsDataURL(file);
+  ev.target.value = '';   // allow re-picking the same file later
+}
+function clearImage() { PO_IMAGE = ''; renderImagePreview(); }
 
-  document.getElementById('sum-mat').textContent     = fmt(matTotal);
-  document.getElementById('sum-exp').textContent     = fmt(expTotal) + (includeExp ? '' : ' (excl.)');
-  document.getElementById('sum-total').textContent   = fmt(totalCost);
-  document.getElementById('sum-perunit').textContent = fmt(perUnit);
+function sectionColsHtml() {
+  return `
+    <thead>
+      <tr>
+        <th style="width:19%">Components / Description</th>
+        <th style="width:17%">Material Reference</th>
+        <th style="width:6%">Unit</th>
+        <th style="width:11%" class="num">Consumption</th>
+        <th style="width:11%" class="num">Req</th>
+        <th style="width:10%" class="num">Issued</th>
+        <th style="width:8%" class="num">Rate</th>
+        <th style="width:14%">Remarks</th>
+        <th style="width:4%"></th>
+      </tr>
+    </thead>`;
+}
+
+/* Build the six empty section shells. Titles default to the department names. */
+function renderBomSections(titles) {
+  const host = document.getElementById('bom-sections');
+  host.innerHTML = '';
+  for (let i = 0; i < SECTION_COUNT; i++) {
+    const title = (titles && titles[i] != null) ? titles[i] : DEFAULT_SECTIONS[i];
+    const sec = document.createElement('div');
+    sec.className = 'bom-section';
+    sec.dataset.section = i;
+    sec.innerHTML = `
+      <div class="bom-section-head">
+        <span class="bom-section-num">${i + 1}</span>
+        <input type="text" class="bom-section-title" value="${esc(title)}" placeholder="Section ${i + 1} heading…">
+      </div>
+      <table class="lines">
+        ${sectionColsHtml()}
+        <tbody id="bom-body-${i}"></tbody>
+      </table>
+      <button class="add-line" onclick="addBomLine(${i})">＋ Add material line</button>`;
+    host.appendChild(sec);
+  }
+}
+
+/* Read the six section titles from the form */
+function getSectionTitles() {
+  return Array.from(document.querySelectorAll('#bom-sections .bom-section-title')).map(i => (i.value || '').trim());
+}
+
+/* ── Excel-style value/formula support for Consumption cells ──
+   Accepts a plain number ("0.067") or a formula ("=1/15", "26.67/400", "(2+1)/45").
+   Only digits and + - * / ( ) . eE are allowed, so evaluation is safe. */
+function evalExpr(raw) {
+  const s = (raw == null ? '' : String(raw)).trim();
+  if (!s) return { value: '', formula: '' };
+  const isEq = s.startsWith('=');
+  const expr = (isEq ? s.slice(1) : s).trim();
+  const looksFormula = isEq || /[+*/()]/.test(expr) || /\d\s*-\s*\d/.test(expr);
+  if (looksFormula) {
+    if (/^[\d.eE+\-*/()\s]+$/.test(expr) && expr !== '') {
+      try {
+        const r = Function('"use strict"; return (' + expr + ');')();
+        if (typeof r === 'number' && isFinite(r)) {
+          const rounded = Math.round(r * 1e6) / 1e6;     // up to 6 decimals
+          return { value: String(rounded), formula: '=' + expr };
+        }
+      } catch (e) { /* fall through */ }
+    }
+    return { value: '', formula: '' };                   // invalid formula → clear
+  }
+  return { value: s, formula: '' };                      // plain number
+}
+function consumptionFocus(inp) {                          // show the formula again for editing
+  if (inp.dataset.formula) inp.value = inp.dataset.formula;
+}
+function formulaBlur(inp) {                               // evaluate a value/formula cell
+  const r = evalExpr(inp.value);
+  inp.dataset.formula = r.formula || '';
+  inp.value = r.value;
+}
+function consumptionBlur(inp) {                           // Consumption: evaluate, then recompute Total Consume
+  formulaBlur(inp);
+  recalcTotalConsume();
+}
+/* Total Pairs currently entered in the size grid */
+function formTotalPairs() {
+  let t = 0;
+  document.querySelectorAll('#size-grid .size-in').forEach(i => { t += Number(i.value) || 0; });
+  return t;
+}
+/* Total Consume = Consumption × Total Pairs, written into each line's (read-only) cell */
+function recalcTotalConsume() {
+  const tp = formTotalPairs();
+  document.querySelectorAll('#bom-sections tr').forEach(tr => {
+    const compEl = tr.querySelector('.bom-comp');
+    const tcEl = tr.querySelector('.bom-tc');
+    if (!compEl || !tcEl) return;
+    const c = Number(consumptionData(compEl).value) || 0;
+    tcEl.value = (c > 0 && tp > 0) ? Math.round(c * tp * 1e4) / 1e4 : '';
+  });
+}
+function consumptionValue(inp) {                          // numeric value for storage (robust if not blurred)
+  if (!inp) return '';
+  return evalExpr(inp.value).value;
+}
+/* Returns both the numeric value and the formula (if any) for a consumption cell.
+   Handles: plain number, formula shown live (focused), and formula remembered after blur. */
+function consumptionData(inp) {
+  if (!inp) return { value: '', formula: '' };
+  const live = (inp.value || '').trim();
+  const looksFormula = live.startsWith('=') || /[+*/()]/.test(live) || /\d\s*-\s*\d/.test(live);
+  if (looksFormula) return evalExpr(live);                // currently showing a formula
+  return { value: live, formula: inp.dataset.formula || '' };  // plain value; keep remembered formula
+}
+
+function addBomLine(sectionIndex, opts) {
+  opts = opts || {};
+  const key    = opts.key || '';
+  const desc   = opts.description || '';
+  const comp   = opts.composition || '';      // Consumption (per pair)
+  const issue  = Number(opts.issued) || 0;
+  const tc     = opts.totalConsume != null ? opts.totalConsume : '';
+  const rate   = opts.rate != null ? opts.rate : '';
+  const rem    = opts.remarks || '';
+  const actual = Number(opts.actualQty) || 0;   // preserved backend qty; 0 for new lines
+  const tb = document.getElementById('bom-body-' + (sectionIndex || 0));
+  if (!tb) return;
+  const tr = document.createElement('tr');
+  tr.dataset.actualQty = actual;                 // hidden: never driven by these fields
+  const label = key ? (NAME_MAP[key] || key) : '';
+  tr.innerHTML = `
+    <td><input type="text" class="bom-desc" value="${esc(desc)}" placeholder="component…"></td>
+    <td>
+      <div class="combo bom-mat-combo" data-value="${esc(key)}">
+        <input type="text" class="combo-input" autocomplete="off" placeholder="Search material…" value="${esc(label)}"
+               onfocus="comboOpen(this)" oninput="comboFilter(this)" onkeydown="comboKey(event,this)" onblur="comboBlur(this)">
+        <div class="combo-list"></div>
+      </div>
+    </td>
+    <td class="bom-unit" style="color:#57606a">${esc(UNIT_MAP[key] || '—')}</td>
+    <td class="num"><input type="text" inputmode="decimal" class="bom-comp num" value="${esc(comp)}" placeholder="0 or =1/15" title="Enter a value or a formula, e.g. =26.67/400" onfocus="consumptionFocus(this)" onblur="consumptionBlur(this)"></td>
+    <td class="num"><input type="number" class="bom-tc num" value="${esc(tc)}" placeholder="" readonly title="Auto: Consumption × Total Pairs"></td>
+    <td class="num"><input type="number" class="bom-issue num" min="0" step="any" value="${issue > 0 ? issue : ''}" placeholder=""></td>
+    <td class="num"><input type="number" class="bom-rate num" min="0" step="any" value="${esc(rate)}" placeholder=""></td>
+    <td><input type="text" class="bom-remarks" value="${esc(rem)}" placeholder=""></td>
+    <td><button class="row-btn" title="Remove" onclick="this.closest('tr').remove()">✕</button></td>`;
+  tb.appendChild(tr);
+  // Restore a saved consumption formula so focusing the cell shows it again (Excel-style)
+  if (opts.formula) {
+    const ci = tr.querySelector('.bom-comp');
+    if (ci) ci.dataset.formula = opts.formula;
+  }
 }
 
 function resetCreateForm() {
+  exitEditMode();
   document.getElementById('po-ref').value = INVENTORY.length ? nextReference() : '';
   document.getElementById('po-desc').value = '';
-  document.getElementById('po-finished').value = '';
-  document.getElementById('po-qty').value = '1';
-  document.getElementById('po-addnoninv').checked = false;
-  document.getElementById('bom-body').innerHTML = '';
-  document.getElementById('exp-body').innerHTML = '';
+  comboSetValue(document.getElementById('po-finished'), '');
+  document.getElementById('po-qty').value = '0';
+  document.getElementById('po-customer').value = '';
+  document.getElementById('po-color').value = '';
+  document.getElementById('po-shape').value = '';
+  renderBomSections();          // five fresh, empty department sections
+  setSizes(null);               // clear size breakdown (also resets linked qty)
+  PO_IMAGE = ''; renderImagePreview();
   document.getElementById('create-msg').innerHTML = '';
   setToday();
-  addBomLine(); addExpLine(); recalcCreate();
 }
 
 function setToday() {
-  document.getElementById('po-date').value = new Date().toISOString().slice(0,10);
+  const t = todayStr();
+  document.getElementById('po-date').value = t;
+  document.getElementById('po-delivery').value = t;
+}
+
+/* Leave edit mode and restore the create-form chrome */
+function exitEditMode() {
+  EDIT_KEY = null; EDIT_ITEM = null;
+  document.getElementById('create-title').textContent = 'New Production Order';
+  document.getElementById('create-sub').innerHTML = 'Enter the order details and the <strong>Required</strong> and <strong>Issued</strong> quantity for each raw material, then post it to Manager.';
+  document.getElementById('edit-banner').innerHTML = '';
+  document.getElementById('post-btn').textContent = 'Create Production Order';
 }
 
 /* ══════════════════════════════════
-   CREATE — build payload & POST
-   Mirrors the production-order schema; native
-   fields only. "Budgeted Qty" is an extension
-   planning column (Manager has no native field
-   for it) so it is preserved in the description.
+   EDIT — load an existing order into the form
+══════════════════════════════════ */
+function editOrder(idx) {
+  const row = PRODUCTION[idx];
+  const it  = row?.item || {};
+  EDIT_KEY  = row?.key || it?.key || null;
+  EDIT_ITEM = it;
+
+  switchTab('create');
+  document.getElementById('create-title').textContent = 'Edit Production Order';
+  document.getElementById('create-sub').textContent = 'Update the order below. Existing material quantities are preserved; the print-only Required and Issued values are editable per line.';
+  document.getElementById('edit-banner').innerHTML =
+    `<div class="ok-box">Editing order #${esc(it?.reference || it?.text || '')}. Changes will be saved back to Manager. <button class="btn-secondary" style="padding:4px 10px;margin-left:8px" onclick="resetCreateForm()">Cancel edit</button></div>`;
+  document.getElementById('post-btn').textContent = 'Update Production Order';
+
+  // Delivery Date = native order date; Issue Sheet Date = custom field (local, no UTC shift)
+  document.getElementById('po-delivery').value = toDateInput(deliveryDate(it));
+  document.getElementById('po-date').value = toDateInput(issueDate(it));
+
+  document.getElementById('po-ref').value = it?.reference ?? it?.text ?? '';
+  comboSetValue(document.getElementById('po-finished'), it?.finishedInventoryItem || '');
+  document.getElementById('po-qty').value = Number(it?.qty) || 0;
+
+  const { byIndex, sections, sizes, meta, image, nameMap, map, actualMap, clean } = parseBudgets(it);
+  document.getElementById('po-desc').value = clean || '';
+  document.getElementById('po-customer').value = (meta && meta.cust) || '';
+  document.getElementById('po-color').value = (meta && meta.col) || '';
+  document.getElementById('po-shape').value = (meta && meta.shp) || '';
+  setSizes(sizes || null);   // if sizes exist, this re-links Finished Qty to Total Pairs
+  PO_IMAGE = image || orderImageSrc(it); renderImagePreview();
+
+  // Rebuild the six sections (use saved titles if any), then place each line in its section
+  renderBomSections(sections || null);
+  const lines = Array.isArray(it?.billOfMaterials) ? it.billOfMaterials : [];
+  lines.forEach((l, i) => {
+    const key = l?.billOfMaterials || '';
+    const e = (byIndex && byIndex[i]) ? byIndex[i] : null;
+    const issued = e ? (Number(e.i) || 0) : (Number(actualMap[key]) || 0);
+    let s = (e && Number.isInteger(e.s)) ? e.s : 0;
+    s = Math.max(0, Math.min(SECTION_COUNT - 1, s));
+    addBomLine(s, {
+      key,
+      description: e ? (e.d || '') : '',
+      composition: e ? (e.c || '') : '',                 // Consumption (computed value)
+      formula: e ? (e.cf || '') : '',                    // Consumption formula (restored)
+      issued,
+      rate: e ? (e.rate != null ? e.rate : '') : '',
+      remarks: e ? (e.m || '') : '',
+      actualQty: Number(l?.qty) || 0
+    });
+  });
+
+  recalcTotalConsume();                 // fill Total Consume from restored consumption × total pairs
+  document.getElementById('create-msg').innerHTML = '';
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+/* ══════════════════════════════════
+   CREATE / UPDATE — build payload & POST or PUT.
+   "Budgeted Qty" is print-only: stored in the description
+   tag, never written as a material's actual line qty.
+   On edit, each line keeps its original backend qty.
 ══════════════════════════════════ */
 function submitProductionOrder() {
   const msg = document.getElementById('create-msg');
   msg.innerHTML = '';
 
-  const finished = document.getElementById('po-finished').value;
+  const finished = comboValue(document.getElementById('po-finished'));
   const prodQty  = Number(document.getElementById('po-qty').value) || 0;
 
-  // Collect BOM lines + budgeted qty keyed by material
+  // Collect BOM lines from all sections. Actual backend qty comes from the row's preserved
+  // value (0 for new lines). Components/Description, Consumption, Issued, Total Consume, Rate,
+  // Remarks and the section index are print-only and stored in the Print Data field (⟦POX⟧).
   const bomLines = [];
-  const budgetMap = {};
-  document.querySelectorAll('#bom-body tr').forEach(tr => {
-    const key = tr.querySelector('.bom-mat')?.value || '';
-    const qty = Number(tr.querySelector('.bom-qty')?.value) || 0;
-    const bud = Number(tr.querySelector('.bom-budget')?.value) || 0;
-    if (key) {
-      bomLines.push({ billOfMaterials: key, qty: qty, obsolete_Qty: null });
-      if (bud > 0) budgetMap[key] = bud;
-    }
-  });
-
-  // Collect expense lines
-  const expItems = [];
-  document.querySelectorAll('#exp-body tr').forEach(tr => {
-    const amt = Number(tr.querySelector('.exp-amt')?.value) || 0;
-    if (amt) expItems.push({ account: null, amount: amt, division: null });
-  });
-  if (!expItems.length) expItems.push({ account: null, amount: 0, division: null });
+  const extras = [];   // index-aligned to bomLines; each carries its section index `s`
+  for (let s = 0; s < SECTION_COUNT; s++) {
+    document.querySelectorAll('#bom-body-' + s + ' tr').forEach(tr => {
+      const key = comboValue(tr.querySelector('.bom-mat-combo'));
+      const dsc = (tr.querySelector('.bom-desc')?.value || '').trim();
+      if (!key && !dsc) return;   // skip fully-empty rows
+      const actual = Number(tr.dataset.actualQty) || 0;
+      const compData = consumptionData(tr.querySelector('.bom-comp'));
+      bomLines.push({ billOfMaterials: key, qty: actual, obsolete_Qty: null });
+      extras.push({
+        s,                                                          // section index
+        d: dsc,                                                     // Components / Description
+        c: compData.value,                                          // Consumption (computed value)
+        cf: compData.formula,                                       // Consumption formula (e.g. =1/15)
+        i: Number(tr.querySelector('.bom-issue')?.value) || 0,      // Issued
+        rate: (tr.querySelector('.bom-rate')?.value || '').trim(),  // Rate
+        m: (tr.querySelector('.bom-remarks')?.value || '').trim()   // Remarks
+      });
+    });
+  }
+  const sectionTitles = getSectionTitles();
+  const sizes = getSizes();
+  const pmeta = {
+    cust: (document.getElementById('po-customer')?.value || '').trim(),
+    col:  (document.getElementById('po-color')?.value || '').trim(),
+    shp:  (document.getElementById('po-shape')?.value || '').trim()
+  };
 
   // Validate
   if (!finished) { msg.innerHTML = `<div class="err-box">Please select a finished inventory item.</div>`; return; }
-  if (prodQty <= 0) { msg.innerHTML = `<div class="err-box">Finished qty must be greater than zero.</div>`; return; }
-  if (!bomLines.length) { msg.innerHTML = `<div class="err-box">Add at least one material line.</div>`; return; }
+  if (prodQty <= 0) { msg.innerHTML = `<div class="err-box">Finished Qty is linked to Total Pairs — enter the size breakdown so the total is greater than zero.</div>`; return; }
+  if (!bomLines.length) { msg.innerHTML = `<div class="err-box">Add at least one material line in any section.</div>`; return; }
 
   // Reference: use field value, else auto = highest existing + 1
   const ref = document.getElementById('po-ref').value.trim() || nextReference();
 
-  // Description: keep user text clean; append a hidden budgeted-qty tag for round-tripping
-  let desc = document.getElementById('po-desc').value.trim();
-  const budTag = encodeBudgets(budgetMap);
-  const fullDesc = [desc, budTag].filter(Boolean).join(' ').trim();
+  // Structured data tag (no image) + standalone image tag. Both go in the Print Data text
+  // custom field when configured (Description stays clean); else appended to Description.
+  const desc = document.getElementById('po-desc').value.trim();
+  const imageRaw = PO_IMAGE ? stripDataUrlPrefix(PO_IMAGE) : '';
+  const poxTag = encodeLineExtras(sectionTitles, extras, sizes, pmeta);
+  const imgTag = encodeImageTag(imageRaw);
+  const dataBlob = [poxTag, imgTag].filter(Boolean).join('');   // POX first, IMG last
+  const useDataField = !!(DATA_FIELD_KEY && dataBlob);
+  const fullDesc = useDataField ? (desc || null) : ([desc, dataBlob].filter(Boolean).join(' ').trim() || null);
 
-  const dateVal = document.getElementById('po-date').value;
-  const isoDate = dateVal ? new Date(dateVal + 'T00:00:00').toISOString() : new Date().toISOString();
+  const issueIso = dateForBackend(document.getElementById('po-date').value);
+  const deliveryIso = dateForBackend(document.getElementById('po-delivery').value);
 
-  // Payload — native production-order shape (modelled on the real batch record)
-  const payload = {
-    value: {
-      date: isoDate,
-      reference: ref,
-      inventoryLocation: null,
-      description: fullDesc || null,
-      finishedInventoryItem: finished,
-      qty: prodQty,
-      billOfMaterials: bomLines,
-      addNonInventoryCostIntoProduction: document.getElementById('po-addnoninv').checked,
-      expenseItems: expItems,
-      customTheme: false,
-      customThemeId: null,
-      customFields: null,
-      customFields2: { strings:null, decimals:null, dates:null, booleans:null, stringArrays:null, images:null },
-      automaticReference: false,
-      obsolete_ExpenseAccount: null,
-      obsolete_Amount: null,
-      obsolete_JournalEntry: null,
-      obsolete_Reference: null,
-      obsolete_Qty: null,
-      transactionTitle: null
-    },
-    business: null
+  // Preserve any existing customFields2 sub-objects, then set the Issue Sheet Date custom field
+  const baseCF2 = (EDIT_ITEM && EDIT_ITEM.customFields2) ? { ...EDIT_ITEM.customFields2 } : { strings:null, decimals:null, dates:null, booleans:null, stringArrays:null, images:null };
+  baseCF2.dates = { ...(baseCF2.dates || {}), [ISSUE_DATE_KEY]: issueIso };
+
+  // Store the data + image blob in the Print Data text custom field
+  if (DATA_FIELD_KEY) {
+    const strs = { ...(baseCF2.strings || {}) };
+    if (dataBlob) strs[DATA_FIELD_KEY] = dataBlob; else delete strs[DATA_FIELD_KEY];
+    baseCF2.strings = strs;
+  }
+
+  // Build the order value — start from the original on edit to keep untouched fields intact
+  const base = EDIT_ITEM ? { ...EDIT_ITEM } : {};
+  const value = {
+    ...base,
+    date: deliveryIso,                   // native production-order date = Delivery Date
+    reference: ref,
+    inventoryLocation: base.inventoryLocation ?? null,
+    description: fullDesc || null,
+    finishedInventoryItem: finished,
+    qty: prodQty,
+    billOfMaterials: bomLines,
+    addNonInventoryCostIntoProduction: base.addNonInventoryCostIntoProduction ?? false,
+    expenseItems: Array.isArray(base.expenseItems) && base.expenseItems.length ? base.expenseItems : [{ account: null, amount: 0, division: null }],
+    customFields2: baseCF2,
+    automaticReference: false
   };
 
-  const btn = document.getElementById('post-btn');
-  btn.disabled = true; btn.textContent = 'Posting…';
+  const editing = !!EDIT_KEY;
+  const payload = editing
+    ? { key: EDIT_KEY, value, business: null }
+    : { value, business: null };
 
-  postMessageWithResponse({ type:'api-request', method:'POST', path:'/api4/production-order', body: payload })
+  const btn = document.getElementById('post-btn');
+  const verb = editing ? 'Updating…' : 'Posting…';
+  btn.disabled = true; btn.textContent = verb;
+
+  postMessageWithResponse({
+    type: 'api-request',
+    method: editing ? 'PUT' : 'POST',
+    path: '/api4/production-order',
+    body: payload
+  })
     .then(resp => {
-      const newKey = resp?.key || resp?.id || (typeof resp === 'string' ? resp : null);
-      // Reflect the new order locally so the next reference auto-advances without a reload
-      PRODUCTION.push({ key: newKey, item: { ...payload.value, text: payload.value.reference } });
-      msg.innerHTML = `<div class="ok-box">✓ Production order #${esc(ref)} created${newKey ? ' (key: ' + esc(newKey) + ')' : ''}.</div>`;
-      btn.textContent = 'Create Production Order'; btn.disabled = false;
-      // Advance reference field to the next number for the following entry
-      document.getElementById('po-ref').value = nextReference();
+      const savedKey = EDIT_KEY || resp?.key || resp?.id || (typeof resp === 'string' ? resp : null);
+      if (editing) {
+        // Update local copy
+        const i = PRODUCTION.findIndex(r => (r?.key || r?.item?.key) === EDIT_KEY);
+        if (i >= 0) PRODUCTION[i] = { ...PRODUCTION[i], item: { ...value, key: EDIT_KEY, text: ref } };
+        msg.innerHTML = `<div class="ok-box">✓ Production order #${esc(ref)} updated.</div>`;
+        exitEditMode();
+        btn.textContent = 'Create Production Order'; btn.disabled = false;
+        document.getElementById('po-ref').value = nextReference();
+      } else {
+        PRODUCTION.push({ key: savedKey, item: { ...value, key: savedKey, text: ref } });
+        msg.innerHTML = `<div class="ok-box">✓ Production order #${esc(ref)} created${savedKey ? ' (key: ' + esc(savedKey) + ')' : ''}.</div>`;
+        btn.textContent = 'Create Production Order'; btn.disabled = false;
+        document.getElementById('po-ref').value = nextReference();
+      }
       renderPoList();
     })
     .catch(err => {
-      msg.innerHTML = `<div class="err-box">⚠ Could not create order: ${esc(err.message)}</div>`;
-      btn.textContent = 'Create Production Order'; btn.disabled = false;
+      msg.innerHTML = `<div class="err-box">⚠ Could not ${editing ? 'update' : 'create'} order: ${esc(err.message)}</div>`;
+      btn.textContent = editing ? 'Update Production Order' : 'Create Production Order';
+      btn.disabled = false;
     });
 }
 
 /* ══════════════════════════════════
-   FETCH — compute per-unit cost for an order
-   Formula: total raw-material cost (+ expenses if
-   flagged) ÷ finished-goods qty produced.
-   Material cost is resolved via the inventory cost
-   map keyed by the BOM line's reference UUID.
+   FETCH — build the material detail for an order.
+   Budgeted Qty is PRINT-ONLY metadata read from the
+   stored description tag; it is independent of the
+   material's actual backend line quantity.
 ══════════════════════════════════ */
-function computeOrderCost(item) {
-  let matTotal = 0;
-  let resolved = 0, totalLines = 0;
-  const { map: budgetMap, clean: cleanDesc } = parseBudgets(item?.description);
+function buildOrderDetail(item) {
+  const { byIndex, sections, sizes, meta, image, map: budgetMap, actualMap, nameMap, clean: cleanDesc } = parseBudgets(item);
+  const totalPairs = (sizes ? Object.values(sizes).reduce((t, n) => t + (Number(n) || 0), 0) : 0) || (Number(item?.qty) || 0);
   const lines = Array.isArray(item?.billOfMaterials) ? item.billOfMaterials : [];
-  const detail = lines.map(l => {
-    totalLines++;
+  const detail = lines.map((l, i) => {
     const key  = l?.billOfMaterials;
-    const qty  = Number(l?.qty) || 0;
-    const unit = COST_MAP[key];
-    const known = unit !== undefined;
-    if (known) resolved++;
-    const u = unit || 0;
-    const line = u * qty;
-    matTotal += line;
-    const budget = Number(budgetMap[key]) || 0;
-    return { name: known ? (NAME_MAP[key] || key) : (key || '—'), qty, budget, unit:u, line, known };
+    const name = NAME_MAP[key] || key || '';
+    const e = (byIndex && byIndex[i]) ? byIndex[i] : null;
+    const consumption = e ? (Number(e.c) || 0) : 0;
+    const required = consumption > 0 ? consumption * totalPairs : 0;   // Req = Consumption × Total Pairs
+    const issued   = e ? (Number(e.i) || 0) : (Number(actualMap[key]) || 0);
+    let s = (e && Number.isInteger(e.s)) ? e.s : 0;
+    s = Math.max(0, Math.min(SECTION_COUNT - 1, s));
+    return {
+      section: s,
+      name,                                            // Material Reference
+      unit: UNIT_MAP[key] || '',
+      description: e ? (e.d || '') : '',               // Components / Description
+      consumption,                                     // per pair
+      required,                                        // Req = Consumption × Total Pairs
+      issued,
+      rate: e ? (e.rate != null ? e.rate : '') : '',
+      remarks: e ? (e.m || '') : ''
+    };
   });
-
-  let expTotal = 0;
-  (Array.isArray(item?.expenseItems) ? item.expenseItems : []).forEach(e => { expTotal += Number(e?.amount) || 0; });
-  const includeExp = !!item?.addNonInventoryCostIntoProduction;
-
-  const totalCost = matTotal + (includeExp ? expTotal : 0);
-  const prodQty   = Number(item?.qty) || 0;
-  const perUnit   = prodQty > 0 ? totalCost / prodQty : 0;   // guard divide-by-zero
-  const hasBudget = detail.some(d => d.budget > 0);
-
-  return { detail, matTotal, expTotal, includeExp, totalCost, prodQty, perUnit, resolved, totalLines, cleanDesc, hasBudget };
+  return { detail, cleanDesc, sections, sizes, meta, image, totalPairs };
 }
 
 /* List of production orders */
@@ -737,20 +1377,19 @@ function renderPoList() {
   }
   wrap.innerHTML = PRODUCTION.map((row, idx) => {
     const it = row?.item || {};
-    const c  = computeOrderCost(it);
+    const d  = buildOrderDetail(it);
     const ref = it?.reference || it?.text || '(no ref)';
     return `
       <div class="po-card" onclick="openOrder(${idx})">
         <div class="row">
           <span class="ref">#${esc(ref)}</span>
-          <span class="pill cost">${fmt(c.perUnit)} / unit</span>
+          <span class="pill cost">${num(it?.qty)} produced</span>
         </div>
-        <div class="desc">${esc(c.cleanDesc || '—')}</div>
+        <div class="desc">${esc(d.cleanDesc || '—')}</div>
         <div class="meta">
-          <span>${fmtDate(it?.date)}</span>
+          <span>Delivery: ${fmtDate(deliveryDate(it))}</span>
           <span>Finished: ${esc(NAME_MAP[it?.finishedInventoryItem] || it?.finishedInventoryItem || '—')}</span>
-          <span>Qty: ${num(it?.qty)}</span>
-          <span>Total cost: ${fmt(c.totalCost)}</span>
+          <span>Materials: ${d.detail.length}</span>
         </div>
       </div>`;
   }).join('');
@@ -760,67 +1399,112 @@ function renderPoList() {
 function openOrder(idx) {
   const row = PRODUCTION[idx];
   const it  = row?.item || {};
-  const c   = computeOrderCost(it);
+  const d   = buildOrderDetail(it);
   const ref = it?.reference || it?.text || '(no ref)';
   const finishedName = NAME_MAP[it?.finishedInventoryItem] || it?.finishedInventoryItem || '—';
 
-  const unresolvedNote = (c.totalLines && c.resolved < c.totalLines)
-    ? `<div class="err-box" style="margin-top:12px">Note: ${c.totalLines - c.resolved} of ${c.totalLines} material line(s) could not be matched to a priced inventory item, so the per-unit cost may be understated. Materials created through this extension match automatically.</div>`
-    : '';
+  const refClean = (it?.reference || it?.text || '').toString().trim();
+  const meta = d.meta || {};
+  const articleName = it?.finishedInventoryItem ? (ARTICLE_MAP[it.finishedInventoryItem] || finishedName) : '';
+  const planDateStr = issueDate(it) ? fmtDate(issueDate(it)) : '';
+  const imgSrc = d.image || orderImageSrc(it);
 
-  const rowsHtml = c.detail.map(d => `
-    <tr>
-      <td>${esc(d.name)}${d.known ? '' : ' <span style="color:#cf222e;font-size:11px">(unpriced)</span>'}</td>
-      <td class="num">${num(d.qty)}</td>
-      <td class="num">${d.budget > 0 ? num(d.budget) : '—'}</td>
-      <td class="num">${fmt(d.unit)}</td>
-      <td class="num">${fmt(d.line)}</td>
-    </tr>`).join('') || `<tr><td colspan="5" style="text-align:center;color:#888">No material lines</td></tr>`;
+  const fmtC = n => n ? Number(n).toLocaleString(undefined, { maximumFractionDigits: 3 }) : '';
+  const fmtR = n => n ? Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 }) : '';
+  const sectionTitle = (i) => {
+    const t = (d.sections && d.sections[i] != null && String(d.sections[i]).trim()) ? String(d.sections[i]).trim() : (DEFAULT_SECTIONS[i] || `Section ${i + 1}`);
+    return t || `Section ${i + 1}`;
+  };
 
-  const expRows = (Array.isArray(it?.expenseItems) ? it.expenseItems : [])
-    .filter(e => Number(e?.amount))
-    .map(e => `<tr><td>Expense / non-inventory cost</td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num">${fmt(e.amount)}</td></tr>`).join('');
+  // Left detail table
+  const detailRows = [
+    ['Batch #',               esc(refClean)],
+    ['Article Number',        esc(articleName)],
+    ['Customer',              esc(meta.cust || '')],
+    ['Color',                 esc(meta.col || '')],
+    ['Bottom Ref/Shoe Shape', esc(meta.shp || '')],
+    ['Delivery Date',         deliveryDate(it) ? fmtDate(deliveryDate(it)) : '']
+  ].map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('');
+
+  // Department material tables (sections 0..3). First four omitted when they have no lines.
+  const deptCols = `
+    <thead><tr>
+      <th style="width:20%">Components / Description</th>
+      <th style="width:17%">Material Reffrence</th>
+      <th style="width:7%">Unit</th>
+      <th style="width:11%">Consumption</th>
+      <th style="width:11%">Req</th>
+      <th style="width:10%">Issued</th>
+      <th style="width:8%">Rate</th>
+      <th style="width:16%">Remarks</th>
+    </tr></thead>`;
+  let deptHtml = '';
+  for (let i = 0; i < 4; i++) {
+    const items = d.detail.filter(m => m.section === i);
+    if (items.length === 0) continue;   // skip empty first-four departments
+    const rows = items.map(m => `
+      <tr>
+        <td class="l">${esc(m.description)}</td>
+        <td class="c">${esc(m.name)}</td>
+        <td class="c">${esc(m.unit)}</td>
+        <td class="r">${fmtC(m.consumption)}</td>
+        <td class="r">${fmtR(m.required)}</td>
+        <td class="r">${m.issued > 0 ? num(m.issued) : ''}</td>
+        <td class="r">${esc(m.rate)}</td>
+        <td class="l">${esc(m.remarks)}</td>
+      </tr>`).join('');
+    deptHtml += `
+      <table class="dept">
+        <tr class="dept-title"><td colspan="8">${esc(sectionTitle(i))}</td></tr>
+        ${deptCols}
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  // Costing & Planning Department (section 4) — title row + waste-material sub-table
+  const costingHtml = `
+    <table class="dept">
+      <tr class="dept-title italic"><td colspan="7">${esc(sectionTitle(4))}</td></tr>
+    </table>
+    <table class="dept" style="margin-top:14px">
+      <thead><tr>
+        <th style="width:34%">Exra Material Due To Waste production &amp; Costing?</th>
+        <th>Components</th><th>Material</th><th>Unit</th><th>Req</th><th>Singature</th><th>Issue</th>
+      </tr></thead>
+      <tbody>
+        <tr><td class="l">Costing Production Material</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="l">Costing Production Material</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      </tbody>
+    </table>`;
+
+  const sigHtml = `
+    <div class="sig-row">
+      <div class="sig"><div class="line"></div><div class="lbl">CEO</div></div>
+      <div class="sig"><div class="line"></div><div class="lbl">PROCUREMENT DEP</div></div>
+      <div class="sig"><div class="line"></div><div class="lbl">DESIGNING DEP</div></div>
+      <div class="sig"><div class="line"></div><div class="lbl">STORE DEP</div></div>
+    </div>`;
 
   const docHtml = `
-    <div class="doc">
-      <div class="doc-head">
-        <h1>Production Order</h1>
-        <div class="biz">
-          <div><strong>Production Order #${esc(ref)}</strong></div>
-          <div>${fmtDate(it?.date)}</div>
+    <div class="issue-note">
+      <div class="note-company">${esc(COMPANY_NAME)}</div>
+      <div class="note-head">
+        <div class="note-head-left">
+          <table class="detail-table"><tbody>${detailRows}</tbody></table>
+          <div class="assortment">ASSORTMENT</div>
+        </div>
+        <div class="note-head-right">
+          <div class="note-type">Material Issue Note &amp; Consuming Sheet</div>
+          <div class="note-img-row">
+            <div class="note-img-cell">${imgSrc ? `<img src="${imgSrc}" alt="">` : ''}</div>
+            <div class="plandate-cell"><div class="pd-label">Plan Date</div><div class="pd-val">${planDateStr || ''}</div></div>
+          </div>
+          ${sizeTablePrintHtml(d.sizes)}
         </div>
       </div>
-
-      <div class="doc-meta">
-        <div><div class="k">Reference</div><div class="v">${esc(ref)}</div></div>
-        <div><div class="k">Date</div><div class="v">${fmtDate(it?.date)}</div></div>
-        <div><div class="k">Finished Item</div><div class="v">${esc(finishedName)}</div></div>
-        <div><div class="k">Qty Produced</div><div class="v">${num(it?.qty)}</div></div>
-        <div style="grid-column:1/-1"><div class="k">Description</div><div class="v">${esc(c.cleanDesc || '—')}</div></div>
-      </div>
-
-      <table class="doc-tbl">
-        <thead>
-          <tr><th>Raw Material</th><th class="num">Qty Used</th><th class="num">Budgeted Qty</th><th class="num">Unit Cost</th><th class="num">Line Cost</th></tr>
-        </thead>
-        <tbody>
-          ${rowsHtml}
-          ${expRows}
-        </tbody>
-        <tfoot>
-          <tr><td colspan="4">Total Raw Material Cost</td><td class="num">${fmt(c.matTotal)}</td></tr>
-          <tr><td colspan="4">Expense Cost ${c.includeExp ? '(included)' : '(excluded)'}</td><td class="num">${fmt(c.expTotal)}</td></tr>
-          <tr><td colspan="4">Total Production Cost</td><td class="num">${fmt(c.totalCost)}</td></tr>
-        </tfoot>
-      </table>
-
-      <div class="perunit-box">
-        <div class="perunit-card">
-          <div class="k">Per-Unit Cost</div>
-          <div class="v">${fmt(c.perUnit)}</div>
-          <div class="f">Total cost ${fmt(c.totalCost)} ÷ ${num(c.prodQty)} unit(s)</div>
-        </div>
-      </div>
+      ${deptHtml}
+      ${costingHtml}
+      ${sigHtml}
     </div>`;
 
   // On-screen detail (with print button) + hidden print surface
@@ -830,18 +1514,44 @@ function openOrder(idx) {
         <h2 style="margin:0">Order #${esc(ref)} — customised view</h2>
         <div style="display:flex;gap:10px">
           <button class="btn-primary" onclick="printOrder()">🖨 Print / Save as PDF</button>
+          <button class="btn-secondary" onclick="editOrder(${idx})">✎ Edit</button>
           <button class="btn-secondary" onclick="document.getElementById('po-detail').innerHTML=''">Close</button>
         </div>
       </div>
-      ${unresolvedNote}
       ${docHtml}
     </div>`;
   document.getElementById('print-doc').innerHTML = docHtml;
   document.getElementById('po-detail').scrollIntoView({ behavior:'smooth' });
+
+  // If the batch item carried no image (batch can omit image bytes), fetch the single
+  // order and inject the image into both the on-screen and print copies.
+  // If we still have no image anywhere, try fetching the single order (legacy orders
+  // whose image was only in Manager's native field, which the batch may omit).
+  if (!imgSrc) {
+    fetchOrderImageSrc(it, row?.key).then(src => {
+      if (!src) return;
+      const tag = `<img src="${src}" alt="">`;
+      document.querySelectorAll('#po-detail .note-img-cell, #print-doc .note-img-cell').forEach(b => { b.innerHTML = tag; });
+    });
+  }
 }
 
 /* Trigger browser print dialog → user picks "Save as PDF" */
 function printOrder() { window.print(); }
+
+/* Global combobox handling: option pick (mousedown beats blur) + click-away close */
+document.addEventListener('mousedown', e => {
+  const opt = e.target.closest('.combo-opt');
+  if (opt) {
+    e.preventDefault();                       // keep focus so blur reconcile doesn't fight us
+    const combo = opt.closest('.combo');
+    comboPick(combo, opt.dataset.key);
+    return;
+  }
+  if (!e.target.closest('.combo')) {
+    document.querySelectorAll('.combo-list').forEach(l => l.style.display = 'none');
+  }
+});
 
 /* Initialise */
 setToday();
