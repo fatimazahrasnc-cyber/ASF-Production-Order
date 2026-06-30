@@ -410,6 +410,65 @@ async function getProductionOrderBatch(onProgress) {
 }
 
 /* ══════════════════════════════════
+   getInventoryUnitCostBatch
+   Fetches Manager's REAL-TIME average unit cost for every
+   inventory item — exactly the figure Manager itself computes
+   (total value ÷ on-hand qty). Same paginated next_page_token
+   pattern as the other batch loaders. Each record looks like
+   { inventoryItem:<itemKey>, unitCost:<number>, ... }.
+══════════════════════════════════ */
+async function getInventoryUnitCostBatch(onProgress) {
+  const allItems = [];
+  let nextToken  = null;
+  let pageNum    = 0;
+  let apiTotal   = null;
+
+  do {
+    const path = nextToken
+      ? '/api4/inventory-unit-cost-batch?PageSize=99999&next_page_token=' + encodeURIComponent(nextToken)
+      : '/api4/inventory-unit-cost-batch?PageSize=99999';
+
+    const data = await postMessageWithResponse({ type: 'api-request', method: 'GET', path });
+
+    const page = Array.isArray(data) ? data : (data.items || data.data || []);
+    allItems.push(...page);
+
+    nextToken = data.next_page_token || data.nextPageToken || data._links?.next?.href || null;
+    if (apiTotal === null) {
+      apiTotal = data.totalCount ?? data.total ?? data.count ?? data._metadata?.totalCount ?? null;
+    }
+
+    pageNum++;
+    if (onProgress) onProgress(allItems.length, apiTotal, pageNum);
+    if (pageNum >= 1000) break;
+
+  } while (nextToken);
+
+  return allItems;
+}
+
+/* On-demand single-item cost fetch (fallback when an item is missing from the
+   batch, e.g. a brand-new item). Tries a couple of path shapes and returns a
+   number or null. Never throws. */
+async function fetchUnitCostFor(invKey) {
+  if (!invKey) return null;
+  const paths = [
+    '/api4/inventory-unit-cost?inventoryItem=' + encodeURIComponent(invKey),
+    '/api4/inventory-unit-cost?id=' + encodeURIComponent(invKey),
+    '/api4/inventory-unit-cost/' + encodeURIComponent(invKey)
+  ];
+  for (const p of paths) {
+    try {
+      const r = await postMessageWithResponse({ type: 'api-request', method: 'GET', path: p });
+      const rec = r?.item || r?.value || r || {};
+      const c = rec?.unitCost ?? rec?.cost ?? null;
+      if (c != null && isFinite(Number(c))) return Number(c);
+    } catch (e) { /* try next shape */ }
+  }
+  return null;
+}
+
+/* ══════════════════════════════════
    Global state + helpers
 ══════════════════════════════════ */
 let INVENTORY = [];          // raw inventory-item-batch rows
@@ -417,6 +476,7 @@ let PRODUCTION = [];         // raw production-order-batch rows
 let NAME_MAP   = {};         // inventory key -> display name (with code)
 let ARTICLE_MAP= {};         // inventory key -> item name only (no item code)
 let UNIT_MAP   = {};         // inventory key -> unit of measurement
+let COST_MAP   = {};         // inventory key -> real-time average unit cost (Rate). PRINT-ONLY, never saved.
 let EDIT_KEY   = null;       // key of order being edited (null = create mode)
 let EDIT_ITEM  = null;       // original item being edited (to preserve untouched fields)
 
@@ -625,8 +685,30 @@ async function loadAllRecords() {
       status.textContent = total
         ? `Production orders · page ${page} · ${loaded.toLocaleString()} / ${total.toLocaleString()}`
         : `Production orders · page ${page} · ${loaded.toLocaleString()} loaded…`;
-      bar.style.width = (50 + Math.min(45, page * 5)) + '%';
+      bar.style.width = (50 + Math.min(35, page * 5)) + '%';
     });
+
+    // 3) Real-time inventory average unit cost (the Rate column). Best-effort:
+    //    a failure here must not break order loading — Rate/Amount just show blank.
+    COST_MAP = {};
+    try {
+      status.textContent = 'Loading inventory unit costs…';
+      const unitCosts = await getInventoryUnitCostBatch((loaded, total, page) => {
+        status.textContent = total
+          ? `Unit costs · page ${page} · ${loaded.toLocaleString()} / ${total.toLocaleString()}`
+          : `Unit costs · page ${page} · ${loaded.toLocaleString()} loaded…`;
+        bar.style.width = (85 + Math.min(13, page * 3)) + '%';
+      });
+      for (const row of unitCosts) {
+        const c = row?.item || row || {};
+        const invKey = c?.inventoryItem || c?.key;   // record FK is inventoryItem; fall back to key
+        if (!invKey) continue;
+        const cost = Number(c?.unitCost);
+        if (isFinite(cost)) COST_MAP[invKey] = cost;
+      }
+    } catch (e) {
+      console.warn('Unit cost load failed (Rate/Amount will be blank):', e);
+    }
 
     // Build lookup maps keyed by inventory item key
     NAME_MAP = {}; ARTICLE_MAP = {}; UNIT_MAP = {};
@@ -640,7 +722,8 @@ async function loadAllRecords() {
     }
 
     bar.style.width = '100%';
-    status.textContent = `✓ ${INVENTORY.length} inventory items · ${PRODUCTION.length} production orders`;
+    const costN = Object.keys(COST_MAP).length;
+    status.textContent = `✓ ${INVENTORY.length} inventory items · ${PRODUCTION.length} production orders · ${costN} unit costs`;
     btn.textContent = '↺ Reload';
     btn.disabled = false;
     render();
@@ -1438,14 +1521,21 @@ function buildOrderDetail(item) {
     const issued   = (Number(l?.qty) || 0) || (e ? (Number(e.i) || 0) : (Number(actualMap[key]) || 0));
     let s = (e && Number.isInteger(e.s)) ? e.s : 0;
     s = Math.max(0, Math.min(SECTION_COUNT - 1, s));
+    // Rate = live average unit cost fetched from Manager; Amount = Rate × Issued.
+    // Both are PRINT-ONLY: computed here from COST_MAP, never read from or written to the backend.
+    const rate   = (key != null && COST_MAP[key] != null) ? Number(COST_MAP[key]) : null;
+    const amount = (rate != null) ? rate * (Number(issued) || 0) : null;
     return {
       section: s,
+      key,                                             // inventory item key (for live cost lookup)
       name,                                            // Material Reference
       unit: UNIT_MAP[key] || '',
       description: e ? (e.d || '') : '',               // Components / Description
       consumption,                                     // per pair
       required,                                        // Req (override or Consumption × Total Pairs)
-      issued
+      issued,
+      rate,                                            // print-only live unit cost
+      amount                                           // print-only rate × issued
     };
   });
   return { detail, cleanDesc, sections, sizes, meta, image, totalPairs };
@@ -1511,20 +1601,27 @@ function openOrder(idx) {
   ].map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('');
 
   // Department material tables (sections 0..3). First four omitted when they have no lines.
+  // Rate (live unit cost) and Amount (Rate × Issued) are print-only, computed from COST_MAP.
   const deptCols = `
     <thead><tr>
-      <th style="width:24%">Components / Description</th>
-      <th style="width:26%">Material Reffrence</th>
-      <th style="width:10%">Unit</th>
-      <th style="width:13%">Consumption</th>
-      <th style="width:13%">Req</th>
-      <th style="width:14%">Issued</th>
+      <th style="width:20%">Components / Description</th>
+      <th style="width:22%">Material Reffrence</th>
+      <th style="width:8%">Unit</th>
+      <th style="width:11%">Consumption</th>
+      <th style="width:11%">Req</th>
+      <th style="width:10%">Issued</th>
+      <th style="width:8%">Rate</th>
+      <th style="width:10%">Amount</th>
     </tr></thead>`;
+  const fmtMoney = n => (n == null || !isFinite(n)) ? '' : num(n);
   let deptHtml = '';
   for (let i = 0; i < 4; i++) {
     const items = d.detail.filter(m => m.section === i);
     if (items.length === 0) continue;   // skip empty first-four departments
-    const rows = items.map(m => `
+    let secAmount = 0, secHasAmount = false;
+    const rows = items.map(m => {
+      if (m.amount != null && isFinite(m.amount)) { secAmount += m.amount; secHasAmount = true; }
+      return `
       <tr>
         <td class="l">${esc(m.description)}</td>
         <td class="c">${esc(m.name)}</td>
@@ -1532,14 +1629,30 @@ function openOrder(idx) {
         <td class="r">${fmtC(m.consumption)}</td>
         <td class="r">${fmtR(m.required)}</td>
         <td class="r">${m.issued > 0 ? num(m.issued) : ''}</td>
-      </tr>`).join('');
+        <td class="r">${fmtMoney(m.rate)}</td>
+        <td class="r">${fmtMoney(m.amount)}</td>
+      </tr>`;
+    }).join('');
+    const subtotal = secHasAmount
+      ? `<tr><td class="r" colspan="7" style="font-weight:700">Sub-total</td><td class="r" style="font-weight:700">${num(secAmount)}</td></tr>`
+      : '';
     deptHtml += `
       <table class="dept">
-        <tr class="dept-title"><td colspan="6">${esc(sectionTitle(i))}</td></tr>
+        <tr class="dept-title"><td colspan="8">${esc(sectionTitle(i))}</td></tr>
         ${deptCols}
-        <tbody>${rows}</tbody>
+        <tbody>${rows}${subtotal}</tbody>
       </table>`;
   }
+
+  // Grand total material cost across all departments (print-only)
+  const grandAmount = d.detail.reduce((t, m) => t + ((m.amount != null && isFinite(m.amount)) ? m.amount : 0), 0);
+  const hasAnyAmount = d.detail.some(m => m.amount != null && isFinite(m.amount));
+  const grandTotalHtml = hasAnyAmount
+    ? `<table class="dept" style="margin-top:10px">
+         <tr><td class="r" colspan="7" style="font-weight:800;background:#d9d9d9">Total Material Cost (Rate × Issued)</td>
+             <td class="r" style="font-weight:800;background:#d9d9d9;width:10%">${num(grandAmount)}</td></tr>
+       </table>`
+    : '';
 
   // Costing & Planning Department (section 4) — title row + waste-material sub-table
   const costingHtml = `
@@ -1583,6 +1696,7 @@ function openOrder(idx) {
         </div>
       </div>
       ${deptHtml}
+      ${grandTotalHtml}
       ${costingHtml}
       ${sigHtml}
     </div>`;
