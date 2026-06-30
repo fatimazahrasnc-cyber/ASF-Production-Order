@@ -485,7 +485,7 @@ function b64decodeUnicode(b64) { return decodeURIComponent(escape(atob(b64))); }
 /* v2 format: { v:2, sec?, sz?, meta?, ln:[{ s, i?, d?, c?, tc?, rate?, m? }] }, only including
    non-default / non-empty parts. The image is NOT here — it lives in its own ⟦IMG:…⟧ tag. */
 function encodeLineExtras(sectionTitles, lines, sizes, pmeta) {
-  const hasAny = lines.some(l => (Number(l.i)||0) || (l.d||'').trim() || (l.c||'').toString().trim() || (l.rate||'').toString().trim() || (l.m||'').trim());
+  const hasAny = lines.some(l => (Number(l.i)||0) || (l.d||'').trim() || (l.c||'').toString().trim() || (l.r||'').toString().trim());
   const hasCustomTitles = (sectionTitles || []).some((t, i) => (t||'').trim() !== (DEFAULT_SECTIONS[i] || '').trim());
   const hasSizes = sizes && Object.keys(sizes).length > 0;
   const hasMeta = pmeta && (pmeta.cust || pmeta.col || pmeta.shp);
@@ -497,8 +497,9 @@ function encodeLineExtras(sectionTitles, lines, sizes, pmeta) {
     if ((l.d || '').trim()) o.d = l.d;
     if ((l.c || '').toString().trim()) o.c = l.c;
     if ((l.cf || '').toString().trim()) o.cf = l.cf;
-    if ((l.rate || '').toString().trim()) o.rate = l.rate;
-    if ((l.m || '').trim()) o.m = l.m;
+    if ((l.r || '').toString().trim()) o.r = l.r;       // Req manual override (presence ⇒ overridden)
+    if ((l.rf || '').toString().trim()) o.rf = l.rf;
+    if ((l.if || '').toString().trim()) o.if = l.if;    // Issued formula (value mirrors backend qty)
     return o;
   });
   const obj = { v: 2, ln };
@@ -965,14 +966,12 @@ function sectionColsHtml() {
   return `
     <thead>
       <tr>
-        <th style="width:19%">Components / Description</th>
-        <th style="width:17%">Material Reference</th>
-        <th style="width:6%">Unit</th>
-        <th style="width:11%" class="num">Consumption</th>
-        <th style="width:11%" class="num">Req</th>
-        <th style="width:10%" class="num">Issued</th>
-        <th style="width:8%" class="num">Rate</th>
-        <th style="width:14%">Remarks</th>
+        <th style="width:18%">Components / Description</th>
+        <th style="width:23%">Material Reference</th>
+        <th style="width:9%">Unit</th>
+        <th style="width:16%" class="num">Consumption</th>
+        <th style="width:16%" class="num">Req</th>
+        <th style="width:14%" class="num">Issued</th>
         <th style="width:4%"></th>
       </tr>
     </thead>`;
@@ -1037,9 +1036,20 @@ function formulaBlur(inp) {                               // evaluate a value/fo
   inp.dataset.formula = r.formula || '';
   inp.value = r.value;
 }
-function consumptionBlur(inp) {                           // Consumption: evaluate, then recompute Total Consume
+function consumptionBlur(inp) {                           // Consumption: evaluate, then recompute Req
   formulaBlur(inp);
   recalcTotalConsume();
+}
+/* Req cell: auto = Consumption × Total Pairs, but the user may overwrite it.
+   Typing marks the cell as manual; clearing it reverts to auto. */
+function reqInput(inp) { inp.dataset.manual = '1'; }
+function reqBlur(inp) {
+  const raw = (inp.value || '').trim();
+  if (raw === '') { inp.dataset.manual = ''; inp.dataset.formula = ''; recalcTotalConsume(); return; }
+  const r = evalExpr(inp.value);
+  inp.dataset.formula = r.formula || '';
+  inp.value = r.value;
+  inp.dataset.manual = '1';
 }
 /* Total Pairs currently entered in the size grid */
 function formTotalPairs() {
@@ -1047,15 +1057,17 @@ function formTotalPairs() {
   document.querySelectorAll('#size-grid .size-in').forEach(i => { t += Number(i.value) || 0; });
   return t;
 }
-/* Total Consume = Consumption × Total Pairs, written into each line's (read-only) cell */
+/* Req = Consumption × Total Pairs, written into each line's Req cell — unless the user
+   has manually overridden that cell (dataset.manual = '1'), in which case it's left alone. */
 function recalcTotalConsume() {
   const tp = formTotalPairs();
   document.querySelectorAll('#bom-sections tr').forEach(tr => {
     const compEl = tr.querySelector('.bom-comp');
-    const tcEl = tr.querySelector('.bom-tc');
-    if (!compEl || !tcEl) return;
+    const reqEl = tr.querySelector('.bom-req');
+    if (!compEl || !reqEl) return;
+    if (reqEl.dataset.manual === '1') return;            // user override — don't touch
     const c = Number(consumptionData(compEl).value) || 0;
-    tcEl.value = (c > 0 && tp > 0) ? Math.round(c * tp * 1e4) / 1e4 : '';
+    reqEl.value = (c > 0 && tp > 0) ? Math.round(c * tp * 1e4) / 1e4 : '';
   });
 }
 function consumptionValue(inp) {                          // numeric value for storage (robust if not blurred)
@@ -1077,15 +1089,13 @@ function addBomLine(sectionIndex, opts) {
   const key    = opts.key || '';
   const desc   = opts.description || '';
   const comp   = opts.composition || '';      // Consumption (per pair)
+  const reqVal = opts.required != null ? opts.required : '';   // Req (manual override value, if any)
   const issue  = Number(opts.issued) || 0;
-  const tc     = opts.totalConsume != null ? opts.totalConsume : '';
-  const rate   = opts.rate != null ? opts.rate : '';
-  const rem    = opts.remarks || '';
   const actual = Number(opts.actualQty) || 0;   // preserved backend qty; 0 for new lines
   const tb = document.getElementById('bom-body-' + (sectionIndex || 0));
   if (!tb) return;
   const tr = document.createElement('tr');
-  tr.dataset.actualQty = actual;                 // hidden: never driven by these fields
+  tr.dataset.actualQty = actual;                 // original backend qty (informational; backend qty now follows Issued)
   const label = key ? (NAME_MAP[key] || key) : '';
   tr.innerHTML = `
     <td><input type="text" class="bom-desc" value="${esc(desc)}" placeholder="component…"></td>
@@ -1098,16 +1108,24 @@ function addBomLine(sectionIndex, opts) {
     </td>
     <td class="bom-unit" style="color:#57606a">${esc(UNIT_MAP[key] || '—')}</td>
     <td class="num"><input type="text" inputmode="decimal" class="bom-comp num" value="${esc(comp)}" placeholder="0 or =1/15" title="Enter a value or a formula, e.g. =26.67/400" onfocus="consumptionFocus(this)" onblur="consumptionBlur(this)"></td>
-    <td class="num"><input type="number" class="bom-tc num" value="${esc(tc)}" placeholder="" readonly title="Auto: Consumption × Total Pairs"></td>
-    <td class="num"><input type="number" class="bom-issue num" min="0" step="any" value="${issue > 0 ? issue : ''}" placeholder=""></td>
-    <td class="num"><input type="number" class="bom-rate num" min="0" step="any" value="${esc(rate)}" placeholder=""></td>
-    <td><input type="text" class="bom-remarks" value="${esc(rem)}" placeholder=""></td>
+    <td class="num"><input type="text" inputmode="decimal" class="bom-req num" value="${esc(reqVal)}" placeholder="auto" title="Auto = Consumption × Total Pairs. Type to override; clear to revert to auto." onfocus="consumptionFocus(this)" oninput="reqInput(this)" onblur="reqBlur(this)"></td>
+    <td class="num"><input type="text" inputmode="decimal" class="bom-issue num" value="${issue > 0 ? esc(issue) : ''}" placeholder="0 or =60/2" title="Issued quantity — written to this material's actual qty on the production order. Enter a value or a formula, e.g. =100/2" onfocus="consumptionFocus(this)" onblur="formulaBlur(this)"></td>
     <td><button class="row-btn" title="Remove" onclick="this.closest('tr').remove()">✕</button></td>`;
   tb.appendChild(tr);
   // Restore a saved consumption formula so focusing the cell shows it again (Excel-style)
   if (opts.formula) {
     const ci = tr.querySelector('.bom-comp');
     if (ci) ci.dataset.formula = opts.formula;
+  }
+  // Restore a manual Req override (value + optional formula)
+  if (opts.required != null && String(opts.required).trim() !== '') {
+    const ri = tr.querySelector('.bom-req');
+    if (ri) { ri.dataset.manual = '1'; if (opts.reqFormula) ri.dataset.formula = opts.reqFormula; }
+  }
+  // Restore a saved Issued formula so focusing the cell shows it again (Excel-style)
+  if (opts.issuedFormula) {
+    const ii = tr.querySelector('.bom-issue');
+    if (ii) ii.dataset.formula = opts.issuedFormula;
   }
 }
 
@@ -1180,7 +1198,9 @@ function editOrder(idx) {
   lines.forEach((l, i) => {
     const key = l?.billOfMaterials || '';
     const e = (byIndex && byIndex[i]) ? byIndex[i] : null;
-    const issued = e ? (Number(e.i) || 0) : (Number(actualMap[key]) || 0);
+    // Issued now == backend qty. Prefer the line's actual qty; fall back to legacy POX/AQI data.
+    const backendQty = Number(l?.qty) || 0;
+    const issued = backendQty || (e ? (Number(e.i) || 0) : (Number(actualMap[key]) || 0));
     let s = (e && Number.isInteger(e.s)) ? e.s : 0;
     s = Math.max(0, Math.min(SECTION_COUNT - 1, s));
     addBomLine(s, {
@@ -1188,14 +1208,73 @@ function editOrder(idx) {
       description: e ? (e.d || '') : '',
       composition: e ? (e.c || '') : '',                 // Consumption (computed value)
       formula: e ? (e.cf || '') : '',                    // Consumption formula (restored)
+      required: e ? (e.r != null ? e.r : '') : '',       // Req override value (if any)
+      reqFormula: e ? (e.rf || '') : '',                 // Req override formula
       issued,
-      rate: e ? (e.rate != null ? e.rate : '') : '',
-      remarks: e ? (e.m || '') : '',
+      issuedFormula: e ? (e.if || '') : '',              // Issued formula (restored)
       actualQty: Number(l?.qty) || 0
     });
   });
 
   recalcTotalConsume();                 // fill Total Consume from restored consumption × total pairs
+  document.getElementById('create-msg').innerHTML = '';
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+/* ══════════════════════════════════
+   CLONE — copy an existing order into the form as a NEW order.
+   Unlike editOrder, this does NOT set EDIT_KEY/EDIT_ITEM, so
+   submitting POSTs a fresh record instead of overwriting the source.
+══════════════════════════════════ */
+function cloneOrder(idx) {
+  const row = PRODUCTION[idx];
+  const it  = row?.item || {};
+
+  exitEditMode();                       // ensure create mode (clears any EDIT_KEY/EDIT_ITEM)
+  switchTab('create');
+  document.getElementById('edit-banner').innerHTML =
+    `<div class="ok-box">Cloning order #${esc(it?.reference || it?.text || '')} as a new production order. A new batch number has been assigned — review the details and create it. <button class="btn-secondary" style="padding:4px 10px;margin-left:8px" onclick="resetCreateForm()">Cancel clone</button></div>`;
+
+  // Dates: default to today for the new order (don't carry the source's dates)
+  setToday();
+
+  // Fresh batch number for the clone (highest existing + 1)
+  document.getElementById('po-ref').value = nextReference();
+
+  comboSetValue(document.getElementById('po-finished'), it?.finishedInventoryItem || '');
+  document.getElementById('po-qty').value = Number(it?.qty) || 0;
+
+  const { byIndex, sections, sizes, meta, image, actualMap } = parseBudgets(it);
+  document.getElementById('po-desc').value = '';          // PO# is order-specific — start blank
+  document.getElementById('po-customer').value = (meta && meta.cust) || '';
+  document.getElementById('po-color').value = (meta && meta.col) || '';
+  document.getElementById('po-shape').value = (meta && meta.shp) || '';
+  setSizes(sizes || null);
+  PO_IMAGE = image || orderImageSrc(it); renderImagePreview();
+
+  // Rebuild sections and lines, but with actualQty = 0 (new order — nothing preserved)
+  renderBomSections(sections || null);
+  const lines = Array.isArray(it?.billOfMaterials) ? it.billOfMaterials : [];
+  lines.forEach((l, i) => {
+    const key = l?.billOfMaterials || '';
+    const e = (byIndex && byIndex[i]) ? byIndex[i] : null;
+    const backendQty = Number(l?.qty) || 0;             // Issued == backend qty on the source
+    let s = (e && Number.isInteger(e.s)) ? e.s : 0;
+    s = Math.max(0, Math.min(SECTION_COUNT - 1, s));
+    addBomLine(s, {
+      key,
+      description: e ? (e.d || '') : '',
+      composition: e ? (e.c || '') : '',
+      formula: e ? (e.cf || '') : '',
+      required: e ? (e.r != null ? e.r : '') : '',
+      reqFormula: e ? (e.rf || '') : '',
+      issued: backendQty || (e ? (Number(e.i) || 0) : 0),
+      issuedFormula: e ? (e.if || '') : '',
+      actualQty: 0
+    });
+  });
+
+  recalcTotalConsume();
   document.getElementById('create-msg').innerHTML = '';
   window.scrollTo({ top:0, behavior:'smooth' });
 }
@@ -1213,9 +1292,9 @@ function submitProductionOrder() {
   const finished = comboValue(document.getElementById('po-finished'));
   const prodQty  = Number(document.getElementById('po-qty').value) || 0;
 
-  // Collect BOM lines from all sections. Actual backend qty comes from the row's preserved
-  // value (0 for new lines). Components/Description, Consumption, Issued, Total Consume, Rate,
-  // Remarks and the section index are print-only and stored in the Print Data field (⟦POX⟧).
+  // Collect BOM lines from all sections. The backend qty of each material line = its Issued
+  // value (the quantity issued to production). Components/Description, Consumption, Req, the
+  // Issued formula and the section index are print-only and stored in the Print Data field (⟦POX⟧).
   const bomLines = [];
   const extras = [];   // index-aligned to bomLines; each carries its section index `s`
   for (let s = 0; s < SECTION_COUNT; s++) {
@@ -1223,17 +1302,22 @@ function submitProductionOrder() {
       const key = comboValue(tr.querySelector('.bom-mat-combo'));
       const dsc = (tr.querySelector('.bom-desc')?.value || '').trim();
       if (!key && !dsc) return;   // skip fully-empty rows
-      const actual = Number(tr.dataset.actualQty) || 0;
       const compData = consumptionData(tr.querySelector('.bom-comp'));
-      bomLines.push({ billOfMaterials: key, qty: actual, obsolete_Qty: null });
+      const reqEl = tr.querySelector('.bom-req');
+      const reqManual = reqEl && reqEl.dataset.manual === '1';
+      const reqData = reqManual ? consumptionData(reqEl) : { value: '', formula: '' };
+      const issueData = consumptionData(tr.querySelector('.bom-issue'));   // value-or-formula
+      const issuedQty = Number(issueData.value) || 0;
+      bomLines.push({ billOfMaterials: key, qty: issuedQty, obsolete_Qty: null });   // Issued ⇒ backend qty
       extras.push({
         s,                                                          // section index
         d: dsc,                                                     // Components / Description
         c: compData.value,                                          // Consumption (computed value)
         cf: compData.formula,                                       // Consumption formula (e.g. =1/15)
-        i: Number(tr.querySelector('.bom-issue')?.value) || 0,      // Issued
-        rate: (tr.querySelector('.bom-rate')?.value || '').trim(),  // Rate
-        m: (tr.querySelector('.bom-remarks')?.value || '').trim()   // Remarks
+        r: reqData.value,                                           // Req override value (only if user overwrote)
+        rf: reqData.formula,                                        // Req override formula
+        i: issuedQty,                                               // Issued value (mirrors backend qty)
+        if: issueData.formula                                       // Issued formula (e.g. =100/2)
       });
     });
   }
@@ -1311,21 +1395,21 @@ function submitProductionOrder() {
   })
     .then(resp => {
       const savedKey = EDIT_KEY || resp?.key || resp?.id || (typeof resp === 'string' ? resp : null);
+      let okMsg;
       if (editing) {
         // Update local copy
         const i = PRODUCTION.findIndex(r => (r?.key || r?.item?.key) === EDIT_KEY);
         if (i >= 0) PRODUCTION[i] = { ...PRODUCTION[i], item: { ...value, key: EDIT_KEY, text: ref } };
-        msg.innerHTML = `<div class="ok-box">✓ Production order #${esc(ref)} updated.</div>`;
-        exitEditMode();
-        btn.textContent = 'Create Production Order'; btn.disabled = false;
-        document.getElementById('po-ref').value = nextReference();
+        okMsg = `<div class="ok-box">✓ Production order #${esc(ref)} updated. The form has been reset to prevent accidental duplicates.</div>`;
       } else {
         PRODUCTION.push({ key: savedKey, item: { ...value, key: savedKey, text: ref } });
-        msg.innerHTML = `<div class="ok-box">✓ Production order #${esc(ref)} created${savedKey ? ' (key: ' + esc(savedKey) + ')' : ''}.</div>`;
-        btn.textContent = 'Create Production Order'; btn.disabled = false;
-        document.getElementById('po-ref').value = nextReference();
+        okMsg = `<div class="ok-box">✓ Production order #${esc(ref)} created${savedKey ? ' (key: ' + esc(savedKey) + ')' : ''}. The form has been reset to prevent accidental duplicates.</div>`;
       }
       renderPoList();
+      resetCreateForm();                 // clear the whole form so a stray second click can't re-post
+      btn.textContent = 'Create Production Order';
+      btn.disabled = false;
+      msg.innerHTML = okMsg;             // set AFTER reset, since resetCreateForm() clears #create-msg
     })
     .catch(err => {
       msg.innerHTML = `<div class="err-box">⚠ Could not ${editing ? 'update' : 'create'} order: ${esc(err.message)}</div>`;
@@ -1349,8 +1433,9 @@ function buildOrderDetail(item) {
     const name = NAME_MAP[key] || key || '';
     const e = (byIndex && byIndex[i]) ? byIndex[i] : null;
     const consumption = e ? (Number(e.c) || 0) : 0;
-    const required = consumption > 0 ? consumption * totalPairs : 0;   // Req = Consumption × Total Pairs
-    const issued   = e ? (Number(e.i) || 0) : (Number(actualMap[key]) || 0);
+    const auto = consumption > 0 ? consumption * totalPairs : 0;
+    const required = (e && String(e.r ?? '').trim() !== '') ? (Number(e.r) || 0) : auto;   // override or auto
+    const issued   = (Number(l?.qty) || 0) || (e ? (Number(e.i) || 0) : (Number(actualMap[key]) || 0));
     let s = (e && Number.isInteger(e.s)) ? e.s : 0;
     s = Math.max(0, Math.min(SECTION_COUNT - 1, s));
     return {
@@ -1359,10 +1444,8 @@ function buildOrderDetail(item) {
       unit: UNIT_MAP[key] || '',
       description: e ? (e.d || '') : '',               // Components / Description
       consumption,                                     // per pair
-      required,                                        // Req = Consumption × Total Pairs
-      issued,
-      rate: e ? (e.rate != null ? e.rate : '') : '',
-      remarks: e ? (e.m || '') : ''
+      required,                                        // Req (override or Consumption × Total Pairs)
+      issued
     };
   });
   return { detail, cleanDesc, sections, sizes, meta, image, totalPairs };
@@ -1423,20 +1506,19 @@ function openOrder(idx) {
     ['Customer',              esc(meta.cust || '')],
     ['Color',                 esc(meta.col || '')],
     ['Bottom Ref/Shoe Shape', esc(meta.shp || '')],
-    ['Delivery Date',         deliveryDate(it) ? fmtDate(deliveryDate(it)) : '']
+    ['Delivery Date',         deliveryDate(it) ? fmtDate(deliveryDate(it)) : ''],
+    ['PO#',                   esc(d.cleanDesc || '')]
   ].map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('');
 
   // Department material tables (sections 0..3). First four omitted when they have no lines.
   const deptCols = `
     <thead><tr>
-      <th style="width:20%">Components / Description</th>
-      <th style="width:17%">Material Reffrence</th>
-      <th style="width:7%">Unit</th>
-      <th style="width:11%">Consumption</th>
-      <th style="width:11%">Req</th>
-      <th style="width:10%">Issued</th>
-      <th style="width:8%">Rate</th>
-      <th style="width:16%">Remarks</th>
+      <th style="width:24%">Components / Description</th>
+      <th style="width:26%">Material Reffrence</th>
+      <th style="width:10%">Unit</th>
+      <th style="width:13%">Consumption</th>
+      <th style="width:13%">Req</th>
+      <th style="width:14%">Issued</th>
     </tr></thead>`;
   let deptHtml = '';
   for (let i = 0; i < 4; i++) {
@@ -1450,12 +1532,10 @@ function openOrder(idx) {
         <td class="r">${fmtC(m.consumption)}</td>
         <td class="r">${fmtR(m.required)}</td>
         <td class="r">${m.issued > 0 ? num(m.issued) : ''}</td>
-        <td class="r">${esc(m.rate)}</td>
-        <td class="l">${esc(m.remarks)}</td>
       </tr>`).join('');
     deptHtml += `
       <table class="dept">
-        <tr class="dept-title"><td colspan="8">${esc(sectionTitle(i))}</td></tr>
+        <tr class="dept-title"><td colspan="6">${esc(sectionTitle(i))}</td></tr>
         ${deptCols}
         <tbody>${rows}</tbody>
       </table>`;
@@ -1515,6 +1595,7 @@ function openOrder(idx) {
         <div style="display:flex;gap:10px">
           <button class="btn-primary" onclick="printOrder()">🖨 Print / Save as PDF</button>
           <button class="btn-secondary" onclick="editOrder(${idx})">✎ Edit</button>
+          <button class="btn-secondary" onclick="cloneOrder(${idx})">⧉ Clone</button>
           <button class="btn-secondary" onclick="document.getElementById('po-detail').innerHTML=''">Close</button>
         </div>
       </div>
